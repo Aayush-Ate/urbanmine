@@ -1,0 +1,15 @@
+services:
+  # Optional production DB — MVP runs fine WITHOUT docker (JSON file fallback).
+  # Run `docker compose up -d db` then set DATABASE_URL to use real PostGIS.
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: urbanmine
+      POSTGRES_PASSWORD: urbanmine
+      POSTGRES_DB: urbanmine
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

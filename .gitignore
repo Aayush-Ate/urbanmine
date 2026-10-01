@@ -1,0 +1,25 @@
+# Deps & build
+node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+
+# AI weights (auto-download on first backend run)
+*.pt
+
+# Uploaded site photos (user data, also heavy)
+backend/uploads/
+
+# Logs
+*.log
+
+# Secrets (see frontend/.env.example for the template)
+.env
+.env.local
+
+# Private docs — stay local, never pushed
+PRD.md
+TRD.md
+
+# OS / editor
+.DS_Store
