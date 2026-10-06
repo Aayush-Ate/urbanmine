@@ -1,7 +1,7 @@
-"""Scoring: distances, quantities, match ranking.
+"""Distances, quantities, and match ranking. Pure math, no files, no models.
 
-WHY separate: pure math, no models, no files — easy to unit-test.
-Match formula: material 40% + quantity 25% + distance 20% + condition 15%.
+Kept separate so tests can pin it exactly. Match formula: material 40% +
+quantity 25% + distance 20% + condition 15%.
 """
 import math
 
@@ -9,7 +9,8 @@ from catalog import CONDITION_SCORES, FULL_QTY
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
-    """Same math as PostGIS ST_Distance(geography)/1000. Swap for PostGIS in prod."""
+    """Kilometers between two points. Same result as PostGIS
+    ST_Distance(geography) / 1000."""
     R = 6371.0
     dlat, dlon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
     a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
@@ -17,11 +18,9 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 
 def qty_for(material, coverage):
-    """Quantity scales with measured frame coverage — never random.
-
-    coverage = fraction of photo covered by boxes (0..1). Full-frame bricks
-    (5000) vs full-frame doors (20): doors cap at 40 because you count pieces.
-    """
+    """Quantity from measured photo coverage (0 to 1). A half-frame of bricks
+    is 2500 pieces. Doors and Windows cap at 40: beyond that you are counting
+    pieces, not area."""
     base = FULL_QTY.get(material, 100)
     q = max(1, round(base * min(max(coverage, 0.02), 1.0)))
     if material in ("Doors", "Windows"):

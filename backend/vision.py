@@ -1,14 +1,16 @@
-"""Vision: photo bytes in, materials out.
+"""Photo bytes in, materials out.
 
-Pipeline (in order, see detect_materials at the bottom):
-  1. yolo_infer — standard yolov8n, everyday objects → Wood/Metal via COCO map.
-  2. world_infer — open-vocabulary yolov8m-worldv2, descriptive prompts → 16 mats.
-  3. visual_estimate — plain pixel colors, no neural net (brown→Wood, red→Bricks…).
-  4. CLIP gate — YOLO proposes boxes, CLIP answers construction-or-household?
+Order of passes (see detect_materials at the bottom):
+  1. yolo_infer — standard yolov8n, everyday objects mapped to Wood/Metal.
+  2. world_infer — yolov8m-worldv2 with descriptive prompts, all 16 materials.
+  3. visual_estimate — plain pixel colors, no neural net (brown is Wood,
+     red is Bricks, and so on).
+  4. CLIP gate — each weak box checked: construction or household?
 
-WHY 4 passes: no labeled demolition dataset exists, so zero-shot prompts beat
-training on day one; color pass catches bulk piles; CLIP kills bedsheet-type
-false positives. Debug with POST /api/analyze?debug=1 + debug=true.
+Four passes because no labeled demolition dataset exists. Zero-shot prompts
+beat training on day one, the color pass catches bulk piles boxes miss, and
+CLIP kills bedsheet-type false positives. Debug a photo with
+POST /api/analyze?debug=1 plus debug=true.
 """
 import io
 import os
@@ -61,10 +63,11 @@ def _get_world():
 
 
 def _aggregate(boxes, names, label_to_mat):
-    """Shared box loop: WHY one place — yolo + world had the same code twice.
+    """One box loop shared by yolo_infer and world_infer.
 
-    boxes: ultralytics boxes, names: idx→label, label_to_mat: fn(label)→mat|None.
-    Returns (hits, others) where hits=(mat,conf,coverage,n,boxes).
+    boxes: ultralytics boxes, names: index to label, label_to_mat: maps a
+    label to a material or None. Returns (hits, others); a hit is
+    (material, confidence, coverage, box count, boxes).
     """
     agg, other = {}, {}
     for b in boxes:
@@ -79,8 +82,6 @@ def _aggregate(boxes, names, label_to_mat):
                 o["conf"] = max(o["conf"], conf)
                 o["n"] += 1
             continue
-        import numpy as _np  # local import keeps module import light
-        _ = _np  # (area math below uses plain floats; kept for clarity)
         _, _, w, h = (float(v) for v in b.xywhn[0])
         area = max(0.0, min(w * h, 1.0))
         a = agg.setdefault(mat, {"conf": 0.0, "area": 0.0, "n": 0, "boxes": []})
@@ -134,11 +135,12 @@ def yolo_infer(image_bytes: bytes):
 
 
 def visual_estimate(image_bytes: bytes):
-    """Color/texture pass over downscaled pixels.
+    """Color pass over a 160px thumbnail. Catches bulk piles (a sand heap,
+    a brick mass) that boxes miss.
 
-    WHY: catches bulk piles (sand heap, brick mass) YOLO boxes miss.
-    Bright smooth neutrals (bedsheets, clothes) count as FABRIC, not concrete.
-    Returns (hits, condition, fabric_cov).
+    Bright smooth neutrals read as fabric, not concrete: that is what keeps
+    bedsheets and clothes out of the listings. Returns
+    (hits, condition, fabric coverage).
     """
     try:
         import numpy as np
@@ -176,7 +178,10 @@ def visual_estimate(image_bytes: bytes):
         return [], "Good", 0.0
 
 
-# ---------- CLIP domain gate: YOLO proposes, CLIP disposes ----------
+# CLIP is the second opinion. Each candidate box (and the full frame) is
+# scored construction vs household. Strong boxes (COCO at 0.50+) skip the
+# check. A bus is a bus. If CLIP is missing, everything passes instead of
+# silently vanishing.
 _clip = None
 _last_debug = {}  # per-stage raw outputs, returned by /api/analyze?debug=1
 
@@ -242,14 +247,14 @@ def crops_of(pil_img, boxes):
 
 
 def detect_materials(image_bytes: bytes):
-    """Boss function: merge all passes + CLIP gate.
+    """Merges all four passes into the final answer.
 
-    Returns (detections, model, non_construction, is_construction_site).
-    Populates _last_debug with per-stage raw outputs for ?debug=1.
-    WHY each rule: strong COCO (bus 0.9) trusted outright; weak World boxes
-    CLIP-checked per crop; fabric frames suppress concrete/metal; people as
-    subject + no objects = background colors mean nothing; fallback Concrete
-    only when the frame looks like construction but nothing fired.
+    Returns (detections, model name, non_construction, is_construction_site).
+    Fills _last_debug for ?debug=1. Rules, each earned by a past misfire:
+    strong COCO boxes skip CLIP; weak World boxes are checked per crop;
+    fabric-heavy frames drop Concrete/Metal; people as subject plus no
+    objects means background colors count for nothing; a construction-looking
+    frame with zero hits gets one labeled Concrete guess.
     """
     _last_debug.clear()
     yolo_hits, yolo_other = yolo_infer(image_bytes)
@@ -375,7 +380,8 @@ def detect_materials(image_bytes: bytes):
 
 
 def downscale_for_ai(raw: bytes, max_side: int = 1280):
-    """Shrink huge phone photos (models see ≤640px anyway). Original untouched."""
+    """Shrinks phone photos before inference. Models see 640px at most, so
+    anything bigger only costs time. The saved original is untouched."""
     try:
         from PIL import Image
         img = Image.open(io.BytesIO(raw)).convert("RGB")

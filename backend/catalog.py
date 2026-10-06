@@ -1,8 +1,7 @@
-"""Catalog: what counts as a material, and what each one is worth.
+"""Prices, units, prompts, and gates for all 16 materials.
 
-WHY this file exists: every number the app shows (price, unit, quantity,
-dropdown list) comes from here. Change a price here, it changes everywhere —
-listings, match, impact — because all of them import MATERIAL_META.
+Every number the app shows comes from here. Change a price and listings,
+match, and impact all follow, because they all read MATERIAL_META.
 """
 # 16 sellable materials. unit = how buyers buy it, price = ₹/unit default,
 # co2_per_unit_kg = rough tonnes-diverted factor, icon = frontend dot.
@@ -25,9 +24,9 @@ MATERIAL_META = {
     "Sand": {"unit": "cu ft", "price": 60, "co2_per_unit_kg": 0.1, "icon": "⏳"},
 }
 
-# WHY descriptive prompts: YOLO-World matches words to pixels. Bare "door"
-# fires on any rectangle; "wooden door removed from frame" fires on salvage.
-# Key = phrase given to the model, value = material it counts as.
+# Phrase given to the model (key) and the material it counts as (value).
+# Specific beats generic: bare "door" fires on any rectangle, while
+# "wooden door removed from frame" fires on salvage.
 WORLD_PROMPTS = {
     "a stack of red clay bricks": "Bricks", "red brick wall": "Bricks",
     "pile of clay bricks": "Bricks", "brick pile": "Bricks",
@@ -66,13 +65,17 @@ WORLD_PROMPTS = {
     "sand pile": "Sand", "pile of sand": "Sand", "gravel pile": "Sand",
 }
 
-# WHY hard negatives: intact-room surfaces (painted wall, ceiling) used to
-# misfire as Concrete/Gypsum. Detect them, then throw them away in vision.py.
+# These six are not salvage. They are intact-room surfaces, listed here so the
+# model has somewhere to put them besides our material prompts. Without a
+# "painted wall" option, a bedroom wall matches "concrete wall" (closest
+# phrase) and becomes a fake Concrete listing. With it, the box matches here
+# and vision.py drops it. Standard null-class practice for open-vocabulary
+# models (see Roboflow's YOLO-World prompting guide).
 WORLD_IGNORE = {"plastered wall", "painted wall", "room interior", "ceiling",
                 "tiled floor", "wooden floor"}
 
-# WHY non-construction list: people, clothes, pets, food are never listings.
-# They go to `non_construction[]` so the UI can show "excluded, here's why".
+# People, clothes, pets, food. Never listed. They land in
+# non_construction[] so the UI shows what was excluded and why.
 WORLD_NONCON = {"person", "man", "woman", "child", "clothes", "bedsheet",
                 "fabric", "blanket", "curtain", "dog", "cat", "bird", "cow",
                 "horse", "sheep", "monkey", "goat", "elephant",
@@ -82,8 +85,8 @@ WORLD_CLASSES = list(WORLD_PROMPTS) + sorted(WORLD_NONCON) + sorted(WORLD_IGNORE
 # Below this World confidence, boxes are junk. CLIP gate disposes the rest.
 WORLD_CONF = 0.12
 
-# WHY this map: COCO (yolov8n) has no brick/concrete class, only everyday
-# objects. So furniture → Wood, vehicles/appliances → Metal scrap value.
+# yolov8n only knows everyday objects. It has no brick or concrete class,
+# so furniture counts as Wood and vehicles/appliances as Metal scrap.
 COCO_TO_MATERIAL = {
     "chair": "Wood", "bench": "Wood", "bed": "Wood", "couch": "Wood",
     "sofa": "Wood", "dining table": "Wood", "table": "Wood", "desk": "Wood",
@@ -100,8 +103,8 @@ COCO_TO_MATERIAL = {
     "toilet": "Concrete", "potted plant": "Bricks",
 }
 
-# WHY: quantity when a material fills 100% of the photo. qty_for() in
-# scoring.py multiplies this by measured coverage — never random.
+# Quantity when a material fills the whole photo. qty_for() in scoring.py
+# multiplies this by measured coverage. Nothing here is random.
 FULL_QTY = {
     "Wood": 800, "Bricks": 5000, "Metal": 1200,
     "Doors": 20, "Windows": 30, "Concrete": 500,
@@ -113,8 +116,8 @@ FULL_QTY = {
 MATERIALS = ["Wood", "Bricks", "Metal", "Doors", "Windows", "Concrete"]
 CONDITION_SCORES = {"Excellent": 1.0, "Good": 0.8, "Fair": 0.55, "Poor": 0.3}
 
-# WHY two CLIP labels: YOLO proposes boxes, CLIP answers "construction or
-# household?" per crop. Gate 0.60 keeps fixtures, kills bedsheets.
+# The two labels for the CLIP check: construction or household. Each weak
+# box is scored against both; below 0.60 construction it is rejected.
 CLIP_LABELS = [
     "a photo of construction material, demolition debris, or salvaged building parts like doors, tiles, or pipes",
     "a photo of clothes, bedsheet, fabric, a person, a pet, or food",

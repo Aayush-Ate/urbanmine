@@ -1,9 +1,9 @@
-"""UrbanMine API — thin routes over catalog/store/vision/scoring.
+"""UrbanMine API. Routes only: each one parses input, calls a module
+function, returns the result.
 
 Run: /opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000
-WHY thin: all logic lives in sibling modules so each file answers one
-question — catalog (what), store (where saved), vision (what's in the photo),
-scoring (how good a match). This file only maps HTTP → those functions.
+Logic lives in catalog.py (what), store.py (where saved), vision.py (what is
+in the photo), scoring.py (how good a match). Schemas in schemas.py.
 """
 import io
 import os
@@ -57,8 +57,8 @@ def health():
 async def analyze(file: UploadFile = File(...), lat: float = Form(12.9716),
                   lng: float = Form(77.5946), address: str = Form("Bengaluru"),
                   debug: bool = Form(False)):
-    """Photo → detections. WHY each guard: 25MB cap stops OOM, format check
-    stops corrupt uploads, original saved untouched, downscaled copy analyzed."""
+    """Photo in, detections out. Rejects files over 25MB (memory) and
+    non-images. Saves the original, analyzes a downscaled copy."""
     raw = await file.read()
     if len(raw) > 25 * 1024 * 1024:
         return {"detections": [], "model": "rejected", "non_construction": [],
@@ -92,7 +92,7 @@ async def analyze(file: UploadFile = File(...), lat: float = Form(12.9716),
 
 @app.post("/api/listings")
 def create_listing(payload: ListingConfirm):
-    """WHY insert(0): newest first, no sort needed on read."""
+    """Newest first, so reads need no sorting."""
     db = load_db()
     meta = MATERIAL_META.get(payload.material, {"unit": "pcs", "price": 100})
     listing = {

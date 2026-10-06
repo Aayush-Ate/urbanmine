@@ -1,7 +1,7 @@
-"""Schemas: shapes of JSON in and out.
+"""The shapes of JSON going in and out.
 
-WHY: FastAPI validates requests against these before your code runs —
-wrong types get a 422 error automatically, not a crash.
+FastAPI checks requests against these before our code runs. Wrong types get
+a 422 response, not a crash.
 """
 from typing import Optional
 

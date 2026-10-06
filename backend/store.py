@@ -1,9 +1,9 @@
-"""Store: JSON file today, Postgres tomorrow.
+"""Listings and requests live in a JSON file for now.
 
-WHY a file: zero setup for teammates — clone + run, no database to install.
-Every request calls load_db() fresh, so no in-memory sync bugs.
-Swap path: set DATABASE_URL + replace these two functions; haversine math in
-scoring.py already mirrors ST_Distance, so rankings won't change.
+No database to install: clone, run, done. Every request reads the file
+fresh, so there is no cache to go stale. To move to Postgres, replace
+load_db/save_db; the haversine math in scoring.py already matches
+ST_Distance, so rankings carry over.
 """
 import json
 import random
@@ -33,7 +33,8 @@ def save_db(db):
 
 
 def seed_if_empty():
-    """First run: 6 Bengaluru listings so search/match/impact work immediately."""
+    """First run only: six Bengaluru listings, so search and matching work
+    before anyone uploads a photo."""
     db = load_db()
     if db["listings"]:
         return db
