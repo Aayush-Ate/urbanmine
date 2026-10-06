@@ -236,7 +236,7 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
           </select>
         </label>
         <button type="button" className="cta sm loc-gps" onClick={useMyLocation} disabled={geoLoading}>
-          {geoLoading ? 'Locating…' : '◎ My location'}
+          {geoLoading ? 'Locating…' : '◎ Current location'}
         </button>
       </div>
       {searching && <div className="mono small muted">searching…</div>}

@@ -13,7 +13,7 @@ const MATERIAL_PAINT = { Wood: '#fbb833', Bricks: '#fa4d43', Metal: '#027b49', D
 
 const TABS = [
   { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos — AI reads location and materials.' },
-  { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials near your site.' },
+  { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials nearby.' },
   { id: 'match', label: 'Smart Match', short: 'Match', title: 'Smart matching', sub: 'Ranked by material 40 · quantity 25 · distance 20 · condition 15.' },
   { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests', sub: 'Accept or decline incoming material requests.' },
   { id: 'impact', label: 'Impact', short: 'Impact', title: 'Impact dashboard', sub: 'Tonnes diverted, value recovered, matches.' },
@@ -242,7 +242,7 @@ function UploadPanel() {
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
       }
-    } catch { setError('Analysis failed — check your connection, then tap Re-analyse. Your photo is kept.') }
+    } catch { setError('Analysis failed — check the connection, then tap Re-analyse. The photo is kept.') }
     setLoading(false); setPhase('done')
   }
 
@@ -409,7 +409,7 @@ function MarketPanel() {
     let alive = true
     ;(async () => {
       if (!window.Cesium) {
-        setMapError('3D library failed to load — check your connection and refresh. Filters below still work.')
+        setMapError('3D library failed to load — check the connection and refresh. Filters below still work.')
         return
       }
       if (!mapRef.current) return
