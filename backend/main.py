@@ -8,7 +8,7 @@ scoring (how good a match). This file only maps HTTP → those functions.
 import io
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -108,7 +108,7 @@ def create_listing(payload: ListingConfirm):
         "description": payload.description,
         "confidence": payload.confidence,
         "status": "active",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "image_url": None,
     }
     db["listings"].insert(0, listing)
@@ -184,7 +184,7 @@ def create_request(r: BuyerRequest):
            "listing_title": listing["title"], "contractor": listing.get("contractor"),
            "buyer_name": r.buyer_name, "buyer_type": r.buyer_type,
            "quantity": r.quantity or listing["quantity"], "message": r.message,
-           "status": "pending", "created_at": datetime.utcnow().isoformat()}
+           "status": "pending", "created_at": datetime.now(timezone.utc).isoformat()}
     db["requests"].insert(0, req)
     save_db(db)
     return req

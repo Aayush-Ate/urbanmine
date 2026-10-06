@@ -8,7 +8,7 @@ scoring.py already mirrors ST_Distance, so rankings won't change.
 import json
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from catalog import MATERIAL_META
@@ -64,7 +64,7 @@ def seed_if_empty():
             "unit": meta["unit"],
             "confidence": round(random.uniform(0.82, 0.97), 2),
             "status": "active",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "image_url": None,
         })
     db["listings"] = seed
