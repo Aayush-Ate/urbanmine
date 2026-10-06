@@ -12,7 +12,7 @@ const MATERIAL_PAINT = { Wood: '#fbb833', Bricks: '#fa4d43', Metal: '#027b49', D
   Tiles: '#c96f2f', Marble: '#8e8e93', Glass: '#7dd3e0', Gypsum: '#e8e2d0', Sand: '#d4a017' }
 
 const TABS = [
-  { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos — AI reads location and materials.' },
+  { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos. AI reads location and materials.' },
   { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials nearby.' },
   { id: 'match', label: 'Smart Match', short: 'Match', title: 'Smart matching', sub: 'Ranked by material 40 · quantity 25 · distance 20 · condition 15.' },
   { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests', sub: 'Accept or decline incoming material requests.' },
@@ -261,15 +261,15 @@ function UploadPanel() {
         setLocSource('photo EXIF')
         setExifNote(`GPS found in photo → ${plat.toFixed(4)}, ${plng.toFixed(4)}`)
       } else {
-        setExifNote('No GPS tag in this photo — set the site below.')
+        setExifNote('No GPS tag in this photo. Set the site below.')
       }
     } catch {
-      setExifNote('No GPS tag in this photo — set the site below.')
+      setExifNote('No GPS tag in this photo. Set the site below.')
     }
     setPhase('detect')
     const blob = await prepImage(f)
     if (!blob) {
-      setError("Couldn't read that photo — please use JPG or PNG.");
+      setError("Couldn't read that photo. Please use JPG or PNG.");
       setLoading(false); setPhase('idle'); return
     }
     preppedRef.current = blob
@@ -336,7 +336,7 @@ function UploadPanel() {
           <button className="cta" onClick={reanalyse} disabled={loading || !file}>{loading ? 'AI thinking…' : 'Re-analyse photo'}<span className="cta-ic">↗</span></button>
           {error && <div className="err" role="alert">{error}</div>}
           {model && <div className="mono small">model: {model}</div>}
-          {saved.length > 0 && <div className="ok-box">✓ {saved.length} listing(s) published — see Marketplace.</div>}
+          {saved.length > 0 && <div className="ok-box">✓ {saved.length} listing(s) published. See Marketplace.</div>}
         </div>
       </div>
 
@@ -344,13 +344,13 @@ function UploadPanel() {
         <div className="card-in">
           <h2>3 · Verify & publish {dets.length ? `· ${dets.length}` : ''}</h2>
           {loading && <div className="skel"><i /><i /><i /></div>}
-          {!loading && dets.length === 0 && <div className="empty">Drop a photo on the left — analysis starts automatically.<br />Site photos yield materials; anything else gets flagged as non-construction.</div>}
+          {!loading && dets.length === 0 && <div className="empty">Drop a photo on the left. Analysis starts automatically.<br />Site photos yield materials; anything else gets flagged as non-construction.</div>}
           {!loading && phase === 'done' && !isSite && (
             <div className="err" role="alert">Doesn't look like a construction site. No reusable materials found. Try a demolition, rubble or interior-strip photo.</div>
           )}
           {!loading && others.length > 0 && (
             <div className="noncon">
-              <div className="noncon-head">Not construction-related — excluded from listings</div>
+              <div className="noncon-head">Not construction-related: excluded from listings</div>
               {others.map((o, i) => (
                 <div key={i} className="noncon-row"><span>{o.label}{o.count > 1 ? ` ×${o.count}` : ''}</span><span className="mono small">{Math.round(o.confidence * 100)}%</span></div>
               ))}
@@ -434,13 +434,13 @@ function MarketPanel() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity })
     })
-    setNotice(`Requested: ${l.title} — contractor ${l.contractor} notified (mock).`)
+    setNotice(`Requested: ${l.title}. The contractor sees it under Requests.`)
   }
 
   return (
     <div>
       <div className="card bezel"><div className="card-in">
-        <h2>Buyer location — distances measured from here</h2>
+        <h2>Buyer location: distances measured from here</h2>
         <LocationPicker compact lat={f.lat} lng={f.lng} address={f.address} source={f.source} onChange={(p) => setF(s => ({ ...s, ...p }))} />
         <div className="filters">
           <label>Search<input placeholder="teak, steel, doors…" value={f.q} onChange={e => setF({ ...f, q: e.target.value })} /></label>
@@ -549,7 +549,7 @@ function RequestsPanel() {
     <div className="card bezel"><div className="card-in">
       <h2>Buyer requests</h2>
       <p className="muted">Buyer clicks “Request Material” → contractor accepts or declines here (MVP: no payments, just handshake).</p>
-      {rows.length === 0 && <div className="empty">No requests yet — request something from the Marketplace.</div>}
+      {rows.length === 0 && <div className="empty">No requests yet. Request something from the Marketplace.</div>}
       {rows.map(r => (
         <div key={r.id} className="match-row">
           <span className="tag">{r.status}</span>

@@ -72,7 +72,7 @@ async function geoReverse(lat, lng) {
 }
 
 /**
- * LocationPicker — nobody types lat/lng.
+ * LocationPicker. Nobody types lat/lng.
  * Ways to set a point: address search (Nominatim), area preset,
  * device GPS, or tap/drag on the mini map. Reverse-geocodes to a
  * human address automatically. `compact` hides the mini map.
@@ -90,12 +90,12 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
   const lastRev = useRef('')
   const searchTimer = useRef(null)
 
-  // Pass through only what changed — the parent merges into its own state,
+  // Pass through only what changed. The parent merges into its own state,
   // so a map tap never clobbers a freshly reverse-geocoded address.
   const set = (patch) => onChange(patch)
 
   // Reverse-geocode whenever the point moves → human address, no typing.
-  // HERE with key, Nominatim fallback — whichever answers first wins.
+  // HERE with key, Nominatim fallback. Whichever answers first wins.
   useEffect(() => {
     const key = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`
     if (!lat || !lng || lastRev.current === key) return
@@ -128,7 +128,7 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
   useEffect(() => {
     if (compact) return
     if (!window.Cesium || !mapRef.current) {
-      setMapError('Mini-globe failed to load — search, presets and GPS above still work.')
+      setMapError('Mini-globe failed to load. Search, presets and GPS above still work.')
       return
     }
     let alive = true
@@ -215,7 +215,7 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
     setGeoLoading(true); setErr('')
     navigator.geolocation.getCurrentPosition(
       (p) => { setGeoLoading(false); set({ lat: +p.coords.latitude.toFixed(5), lng: +p.coords.longitude.toFixed(5), source: 'device GPS' }) },
-      () => { setGeoLoading(false); setErr('Location blocked — allow it in the browser bar, or tap the map.') },
+      () => { setGeoLoading(false); setErr('Location blocked. Allow it in the browser bar, or tap the map.') },
       { timeout: 10000 }
     )
   }
@@ -255,7 +255,7 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
       {err && <div className="err" role="alert">{err}</div>}
       {!compact && <div ref={mapRef} className="map loc-mini" role="application" aria-label="Tap to set the site location" />}
       {!compact && mapError && <div className="err" role="alert">{mapError}</div>}
-      {!compact && <div className="mono small muted">tap map or drag pin — no coordinates to type</div>}
+      {!compact && <div className="mono small muted">tap map or drag pin, no coordinates to type</div>}
       <div className="loc-readout">
         <span>📍 {address || 'resolving address…'}</span>
         <span className="mono small">{Number(lat).toFixed(4)}, {Number(lng).toFixed(4)}</span>

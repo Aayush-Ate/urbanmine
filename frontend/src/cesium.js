@@ -3,7 +3,7 @@
 // Have a Cesium ion token? Put it in frontend/.env as:
 //   VITE_CESIUM_TOKEN=eyJ...
 // That unlocks ion imagery, world terrain and 3D tiles.
-// Without a token the globe runs keyless on Esri satellite imagery — fully functional.
+// Without a token the globe runs keyless on Esri satellite imagery. Fully functional.
 
 export const CESIUM_TOKEN =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CESIUM_TOKEN) || ''
@@ -44,7 +44,7 @@ export async function createViewer(el) {
     if (!baseProvider) {
       // Keyless satellite: Esri World Imagery via the 1.119-native async
       // factory. NOTE: `new ArcGisMapServerImageryProvider({url})` alone is an
-      // UNBUILT shell (no metadata, never ready, crashes tile rendering) —
+      // UNBUILT shell (no metadata, never ready, crashes tile rendering).
       // fromBasemapType/fromUrl is mandatory on this Cesium version.
       try {
         baseProvider = await Cesium.ArcGisMapServerImageryProvider.fromBasemapType(
@@ -61,13 +61,13 @@ export async function createViewer(el) {
     viewer.imageryLayers.addImageryProvider(baseProvider)
     if (terrainProvider) viewer.terrainProvider = terrainProvider
   // Google-Earth atmosphere tuning: sun-driven light + ground atmosphere.
-  // Free, works keyless — realistic building shadows on the satellite view.
+  // Free, works keyless. It adds realistic building shadows to the satellite view.
   try {
     if (viewer.scene && viewer.scene.globe) {
       viewer.scene.globe.showGroundAtmosphere = true
       viewer.scene.globe.enableLighting = true
     }
-  } catch { /* older Cesium builds — skip tuning */ }
+  } catch { /* older Cesium builds: skip tuning */ }
 
   // Google-style layout: Photorealistic 3D Tiles replace the globe entirely.
   // Setup: ion dashboard → Asset Depot → add Google Maps Platform
@@ -83,7 +83,7 @@ export async function createViewer(el) {
     } catch { /* keep the satellite globe */ }
   }
 
-  // NOTE: no Esri Reference-labels overlay — its provider deterministically
+  // NOTE: no Esri Reference-labels overlay. Its provider deterministically
   // crashes tile rendering (getDerivedResource) in this app. Place names come
   // from our own Nominatim search + pin labels instead.
   return viewer

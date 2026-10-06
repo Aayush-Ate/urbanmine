@@ -6,7 +6,7 @@ start with `README.md`; for product and technical specs, see `PRD.md` / `TRD.md`
 (local only, gitignored).
 
 Measured snapshot: 15 tracked source files, ~2,100 lines of code (~130 KB),
-plus docs. No dead demo links live here — see §8 for why localhost comes first.
+plus docs. No dead demo links live here. Section 8 covers why localhost comes first.
 
 ## 1. Big picture
 
@@ -26,7 +26,7 @@ match by material, quantity, condition, and distance → requests → impact tot
 ## 2. Framework decisions — why this, not the alternatives
 
 **FastAPI, not MERN/Express.** The hardest problem is vision AI (torch,
-ultralytics, transformers, PIL) — all Python. Shelling Python out of Node adds
+ultralytics, transformers, PIL), all Python. Shelling Python out of Node adds
 latency and failure modes; Pydantic covers validation.
 
 **Postgres (+PostGIS path), not Mongo.** Matching is geo-first: radius queries
@@ -34,7 +34,7 @@ with GiST indexes plus a real relational ledger for requests. The JSON store
 uses identical haversine math so rankings survive migration.
 
 **React (Vite), not Next.js.** Dashboard with no SEO needs and heavy client
-media (photos, WebGL). No router — five tabs of conditional render.
+media (photos, WebGL). No router. Five tabs of conditional render.
 
 **Cesium, not Leaflet.** Satellite-first presentation with an ion upgrade path
 and one `createViewer` helper for both globes. Known cost on 1.119:
@@ -51,7 +51,7 @@ scale keyed (India-biased); one helper pair owns the chain.
 
 **here.now + tunnel, not permanent hosting (yet).** Static frontend publishes
 in seconds; the backend stays on this machine. Permanent hosting needs a cloud
-backend + database — the known next step, not this step.
+backend + database. That is the known next step, not this step.
 
 ## 3. Source map
 
@@ -144,7 +144,7 @@ qty, point, condition, radius) → scored rows with `distance_km`. Request:
 buyer identity + listing → pending → contractor accepts/declines. Share build:
 tunnel backend → build with `VITE_API_BASE` → publish `dist/` → link.
 Anonymous links are immutable: each republish mints a new slug, and a
-restarted tunnel breaks the baked address — hence localhost-first.
+restarted tunnel breaks the baked address. Hence localhost-first.
 
 ## 7. Build timeline
 
@@ -172,12 +172,12 @@ The full MVP flow diagram lives in `docs/urbanmine-flow.excalidraw.json`
 ## 8. Runbook
 
 Local (the reliable path): backend with the **conda python**
-(`/opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000` —
-plain `python3` lacks the AI deps), frontend `npm install` + `npm run dev`
+(`/opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000`.
+Plain `python3` lacks the AI deps), frontend `npm install` + `npm run dev`
 (`:5173`). Mobile LAN: `HTTPS=1 npm run dev -- --host`, open
 `https://<mac-lan-ip>:5173`, accept the self-signed cert. Share: tunnel the
-backend, build with that URL as `VITE_API_BASE`, run `scripts/publish-here.py`
-— publish only on explicit approval, then record the slug. Env: ion token
+backend, build with that URL as `VITE_API_BASE`, run `scripts/publish-here.py`.
+Publish only on explicit approval, then record the slug. Env: ion token
 (terrain), tiles asset ID (photorealistic 3D), HERE key (geocoder; Nominatim
 fallback without), `DATABASE_URL` (real PostGIS).
 

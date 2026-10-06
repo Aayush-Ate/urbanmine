@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Notes: use the conda python — plain `python3` lacks torch/ultralytics. First photo takes ~1 min (model download + load), then seconds. Check both:
+Notes: use the conda python. Plain `python3` lacks torch/ultralytics. First photo takes ~1 min (model download + load), then seconds. Check both:
 
 ```bash
 curl -s http://localhost:8000/api/health && curl -s -o /dev/null -w "frontend: %{http_code}\n" http://localhost:5173
@@ -92,11 +92,11 @@ Base `http://localhost:8000`. 404s are `{"detail": "..."}`.
 
 ## 7. Data: file today, PostGIS tomorrow
 
-`backend/data.json`, seeded on first run. Distance uses haversine — identical to `ST_Distance(geography)/1000`, so rankings survive migration. Neon `database_q` tested with PostGIS 3.6.4; cutover DDL is in `PROJECT-FULLSTACK.md` §8.
+`backend/data.json`, seeded on first run. Distance uses haversine, identical to `ST_Distance(geography)/1000`. Rankings survive migration. Neon `database_q` tested with PostGIS 3.6.4; cutover DDL is in `PROJECT-FULLSTACK.md` §8.
 
 ## 8. Sharing (localhost first)
 
-The backend runs on a laptop, so any share link is a frozen frontend copy wired through a tunnel — it dies on sleep or tunnel restart, and anonymous slugs can't be revived. Demo on localhost; publish only on explicit approval.
+The backend runs on a laptop, so any share link is a frozen frontend copy wired through a tunnel. It dies on sleep or tunnel restart, and anonymous slugs can't be revived. Demo on localhost; publish only on explicit approval.
 
 - Same Wi-Fi phone: `HTTPS=1 npm run dev -- --host`, open `https://<mac-lan-ip>:5173` (accept cert). Gets camera snap + bottom-tab shell.
 - Public link: `cloudflared tunnel --url http://localhost:8000`, then `VITE_API_BASE=<url> npm run build` in `frontend/`, then `scripts/publish-here.py` (reads this clone's `dist/`).
