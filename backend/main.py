@@ -70,7 +70,7 @@ async def analyze(file: UploadFile = File(...), lat: float = Form(12.9716),
     except Exception:
         return {"detections": [], "model": "rejected", "non_construction": [],
                 "is_construction_site": True,
-                "error": "Photo format not supported — please upload JPG or PNG."}
+                "error": "Photo format not supported. Please upload JPG or PNG."}
     try:
         ext = Path(file.filename or "upload.jpg").suffix or ".jpg"
         fid = f"{uuid.uuid4().hex[:10]}{ext}"
@@ -79,7 +79,7 @@ async def analyze(file: UploadFile = File(...), lat: float = Form(12.9716),
         resp = {"image_url": f"/uploads/{fid}", "detections": dets,
                 "model": model, "non_construction": others,
                 "is_construction_site": is_site,
-                "hint": "Contractor can correct quantity/condition before confirming → becomes listing."}
+                "hint": "Contractor can correct quantity/condition before confirming. It becomes a listing."}
         if debug:
             resp["debug"] = _last_debug
         return resp
@@ -87,7 +87,7 @@ async def analyze(file: UploadFile = File(...), lat: float = Form(12.9716),
         print("analyze failed:", e)
         return {"detections": [], "model": "error", "non_construction": [],
                 "is_construction_site": True,
-                "error": "Analysis failed on the server — please tap Re-analyse."}
+                "error": "Analysis failed on the server. Please tap Re-analyse."}
 
 
 @app.post("/api/listings")

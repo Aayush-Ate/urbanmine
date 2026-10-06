@@ -154,7 +154,7 @@ export default function App() {
         <header className="topbar">
           <div>
             <h1>{active.title}</h1>
-            <p>Turn demolition waste into revenue — {active.sub}</p>
+            <p>Turn demolition waste into revenue. {active.sub}</p>
           </div>
           <div className="spacer" />
           <div className="status-pill" title="Backend status">
@@ -242,7 +242,7 @@ function UploadPanel() {
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
       }
-    } catch { setError('Analysis failed — check the connection, then tap Re-analyse. The photo is kept.') }
+    } catch { setError('Analysis failed. Check the connection, then tap Re-analyse. The photo is kept.') }
     setLoading(false); setPhase('done')
   }
 
@@ -306,7 +306,7 @@ function UploadPanel() {
       <div className="card bezel">
         <div className="card-in">
           <h2>1 · Site photo</h2>
-          <p className="muted">Drop a demolition photo. The AI reads the <b>location from the photo itself</b> (GPS tag) and detects materials — you just verify.</p>
+          <p className="muted">Drop a demolition photo. The AI reads the <b>location from the photo itself</b> (GPS tag) and detects materials. You verify.</p>
           <div className="steps" aria-label="Progress">
             {['Photo', 'AI review', 'Published'].map((s, i) => (
               <div key={s} className={i < step ? 'step done' : i === step ? 'step on' : 'step'}>{i < step ? '✓ ' : ''}{s}</div>
@@ -346,7 +346,7 @@ function UploadPanel() {
           {loading && <div className="skel"><i /><i /><i /></div>}
           {!loading && dets.length === 0 && <div className="empty">Drop a photo on the left — analysis starts automatically.<br />Site photos yield materials; anything else gets flagged as non-construction.</div>}
           {!loading && phase === 'done' && !isSite && (
-            <div className="err" role="alert">Doesn't look like a construction site — no reusable materials found. Try a demolition, rubble or interior-strip photo.</div>
+            <div className="err" role="alert">Doesn't look like a construction site. No reusable materials found. Try a demolition, rubble or interior-strip photo.</div>
           )}
           {!loading && others.length > 0 && (
             <div className="noncon">
@@ -409,7 +409,7 @@ function MarketPanel() {
     let alive = true
     ;(async () => {
       if (!window.Cesium) {
-        setMapError('3D library failed to load — check the connection and refresh. Filters below still work.')
+        setMapError('3D library failed to load. Check the connection and refresh. Filters below still work.')
         return
       }
       if (!mapRef.current) return
@@ -572,10 +572,10 @@ function ImpactPanel() {
   const [d, setD] = useState(null)
   useEffect(() => { fetch(`${API}/api/impact`).then(r => r.json()).then(setD) }, [])
   const cards = useMemo(() => d ? [
-    ['♻️ Material diverted', `${d.tonnes_diverted} tonnes`, 'vs landfill', 'paint-g'],
-    ['💰 Value recovered', d.value_recovered_fmt, `${d.active_listings} active listings`, 'paint-y'],
-    ['🤝 Buyer matches', d.buyer_matches, `${d.total_requests} direct requests`, 'paint-p'],
-    ['📦 Active listings', d.active_listings, 'live now', 'paint-r'],
+    ['Material diverted', `${d.tonnes_diverted} tonnes`, 'vs landfill', 'paint-g'],
+    ['Value recovered', d.value_recovered_fmt, `${d.active_listings} active listings`, 'paint-y'],
+    ['Buyer matches', d.buyer_matches, `${d.total_requests} direct requests`, 'paint-p'],
+    ['Active listings', d.active_listings, 'live now', 'paint-r'],
   ] : [], [d])
   if (!d) return <div className="empty">Loading impact…</div>
   return (

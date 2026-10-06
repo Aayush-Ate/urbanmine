@@ -1,6 +1,6 @@
 # UrbanMine — B2B demolition-reuse marketplace (MVP)
 
-TL;DR:
+In short:
 - Contractors photograph a demolition site, AI lists salvageable materials with quantities, one click publishes a listing, buyers search and match by material, quantity, distance, and condition.
 - Stack: React 18 + Vite 5, FastAPI on conda python, YOLO-World-m + YOLOv8n + color pass + CLIP gate, JSON file store (PostGIS path tested), Cesium satellite globes.
 - Run it: backend `:8000`, frontend `:5173`. Everything works keyless; keys only upgrade maps and geocoding.
