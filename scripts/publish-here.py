@@ -2,10 +2,11 @@
 import json
 import mimetypes
 import os
+from pathlib import Path
 import sys
 import urllib.request
 
-DIST = "/Users/aayush/urbanmine/frontend/dist"
+DIST = str(Path(__file__).resolve().parent.parent / "frontend" / "dist")
 BASE = "https://here.now"
 CLIENT = {"X-HereNow-Client": "opencode/urbanmine-demo"}
 

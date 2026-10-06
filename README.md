@@ -10,12 +10,14 @@ interior designers. An impact dashboard totals waste diverted and value recovere
 ## 1. Quick start
 
 ```bash
-# 1 · backend → http://localhost:8000 (API docs: /docs)
+# Terminal 1 · backend → http://localhost:8000 (API docs: /docs)
 cd urbanmine/backend
-pip install -r requirements.txt
+/opt/homebrew/anaconda3/bin/python -m pip install -r requirements.txt
 /opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000
+```
 
-# 2 · frontend → http://localhost:5173
+```bash
+# Terminal 2 · frontend → http://localhost:5173
 cd urbanmine/frontend
 npm install
 npm run dev
