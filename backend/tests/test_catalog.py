@@ -1,8 +1,6 @@
-"""Seam under test: catalog.py invariants.
-
-No magic values — every prompt must resolve to a real material, every
-material needs a quantity base, every price must be positive.
-"""
+"""Tests for catalog.py. They check the catalog holds together: each prompt
+names a real material, each material has a quantity base, each price is
+positive."""
 import unittest
 
 import catalog

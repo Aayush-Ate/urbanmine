@@ -1,7 +1,5 @@
-"""Seam under test: store.py round-trip, pointed at a temp dir.
-
-Never touches the real data.json — DATA_FILE is swapped for the test.
-"""
+"""Tests for store.py save and load, using a temp dir. The real data.json is
+never touched. Each test points DATA_FILE at its own file instead."""
 import tempfile
 import unittest
 from pathlib import Path

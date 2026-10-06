@@ -1,9 +1,6 @@
-"""Seam under test: scoring.py — pure math, no I/O, no models.
-
-Expected values are independent: haversine cross-checked against the
-PostGIS ST_Distance measurement (5.2 km Koramangala→HSR), match scores
-hand-computed from the 40/25/20/15 weights.
-"""
+"""Tests for scoring.py. It is pure math, so the expected values come from
+outside the code: the 5.2 km distance was measured with PostGIS, and the
+match scores were worked out by hand from the 40/25/20/15 weights."""
 import unittest
 
 from scoring import haversine_km, match_score, qty_for
