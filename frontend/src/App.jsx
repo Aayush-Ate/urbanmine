@@ -1,16 +1,26 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { gsap } from 'gsap'
+// UrbanMine Frontend — simple, one file.
+// React + Vite. Five tabs, each does one thing.
+// No GSAP, no complex hooks, easy to read top to bottom.
+
+import { useEffect, useRef, useState } from 'react'
 import exifr from 'exifr'
 import LocationPicker from './LocationPicker.jsx'
 import { createViewer, flyTo, setPins } from './cesium.js'
 
-const API = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || '' // dev: '' (vite proxy); share build: absolute backend URL
+// API is the backend URL. Empty string means dev mode, Vite proxy sends /api to :8000
+const API = ''
+// BLR is Bengaluru center coordinates, used as default location
 const BLR = { lat: 12.9716, lng: 77.5946 }
-// The1 identity: one paint color per material (wayfinding dots + map pins)
-const MATERIAL_PAINT = { Wood: '#fbb833', Bricks: '#fa4d43', Metal: '#027b49', Doors: '#f19ec8', Windows: '#1f1f1f', Concrete: '#000000',
-  Plywood: '#fbb833', Rebar: '#3d3d3d', Copper: '#b87333', Aluminium: '#a8a9ad', 'PVC Pipes': '#fafafa',
-  Tiles: '#c96f2f', Marble: '#8e8e93', Glass: '#7dd3e0', Gypsum: '#e8e2d0', Sand: '#d4a017' }
 
+// MATERIAL_PAINT gives each material a color for dots and map pins
+const MATERIAL_PAINT = {
+  Wood: '#fbb833', Bricks: '#fa4d43', Metal: '#027b49', Doors: '#f19ec8', Windows: '#1f1f1f',
+  Concrete: '#000000', Plywood: '#fbb833', Rebar: '#3d3d3d', Copper: '#b87333',
+  Aluminium: '#a8a9ad', 'PVC Pipes': '#fafafa', Tiles: '#c96f2f', Marble: '#8e8e93',
+  Glass: '#7dd3e0', Gypsum: '#e8e2d0', Sand: '#d4a017',
+}
+
+// TABS defines the 5 tabs: Upload, Marketplace, Smart Match, Requests, Impact
 const TABS = [
   { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos. AI reads location and materials.' },
   { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials nearby.' },
@@ -19,18 +29,7 @@ const TABS = [
   { id: 'impact', label: 'Impact', short: 'Impact', title: 'Impact dashboard', sub: 'Tonnes diverted, value recovered, matches.' },
 ]
 
-function useIsMobile() {
-  const [m, setM] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches)
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 900px)')
-    const fn = (e) => setM(e.matches)
-    mq.addEventListener('change', fn)
-    return () => mq.removeEventListener('change', fn)
-  }, [])
-  return m
-}
-
+// fmtINR converts a number to Indian rupees format like ₹1.5 lakh or ₹2 Cr
 function fmtINR(n) {
   if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`
   if (n >= 100000) return `₹${(n / 100000).toFixed(1)} lakh`
@@ -38,85 +37,23 @@ function fmtINR(n) {
 }
 
 export default function App() {
+  // tab is which tab is currently open
   const [tab, setTab] = useState('upload')
+  // health is the backend status from /api/health
   const [health, setHealth] = useState(null)
 
+  // on load, check if backend is alive
   useEffect(() => {
-    let live = true
-    fetch(`${API}/api/health`).then(r => r.json()).then(j => { if (live) setHealth(j) }).catch(() => {})
-    return () => { live = false }
+    fetch(`${API}/api/health`).then(r => r.json()).then(j => setHealth(j)).catch(() => {})
   }, [])
-
-  // GSAP: motivated motion only — sidebar sequence on load, card feedback on tab switch.
-  // Skipped entirely under prefers-reduced-motion (see styles.css kill-switch for CSS anims).
-  const pageRef = useRef(null)
-  const reduceMotion = () =>
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  useLayoutEffect(() => {
-    if (reduceMotion()) return
-    const ctx = gsap.context(() => {
-      gsap.fromTo('.side-brand, .snav, .side-formula, .m-top, .mtab',
-        { x: -14, opacity: 0 },
-        { x: 0, opacity: 1, duration: 0.6, stagger: 0.05, ease: 'power3.out', clearProps: 'transform,opacity' })
-    }, pageRef)
-    return () => ctx.revert()
-  }, [])
-
-  useLayoutEffect(() => {
-    if (reduceMotion()) return
-    const ctx = gsap.context(() => {
-      gsap.fromTo('.tab-panel .bezel',
-        { y: 16, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.5, stagger: 0.06, ease: 'power3.out', clearProps: 'transform,opacity' })
-    }, pageRef)
-    return () => ctx.revert()
-  }, [tab])
 
   const active = TABS.find(t => t.id === tab) || TABS[0]
-  const isMobile = useIsMobile()
-
-  // Mobile gets its own shell: brand bar + workspace + bottom tab bar.
-  // Laptop keeps the sidebar dashboard below. Same panels, same APIs.
-  if (isMobile) {
-    return (
-      <div className="shell m-shell" ref={pageRef}>
-        <a className="skip" href="#main">Skip to content</a>
-        <header className="m-top">
-          <div className="mark">UM</div>
-          <div className="m-title">
-            <div className="m-brand">UrbanMine · {active.title}</div>
-            <div className="m-sub">{active.sub}</div>
-          </div>
-          <span className={health ? 'dot ok' : 'dot bad'} title="Backend status" />
-        </header>
-        <main className="page m-page" id="main">
-          <div className="tab-panel" key={tab}>
-            {tab === 'upload' && <UploadPanel />}
-            {tab === 'market' && <MarketPanel />}
-            {tab === 'match' && <MatchPanel />}
-            {tab === 'requests' && <RequestsPanel />}
-            {tab === 'impact' && <ImpactPanel />}
-          </div>
-        </main>
-        <footer className="foot mono m-foot">
-          UrbanMine · {health ? `${health.listings} listings · ${health.yolo ? 'YOLOv8' : 'Mock AI'}` : 'connecting…'}
-        </footer>
-        <nav className="m-tabs" role="tablist" aria-label="Marketplace sections">
-          {TABS.map((t, i) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'mtab active' : 'mtab'} onClick={() => setTab(t.id)}>
-              <span className="num">{i + 1}</span>{t.short}
-            </button>
-          ))}
-        </nav>
-      </div>
-    )
-  }
 
   return (
-    <div className="shell" ref={pageRef}>
+    <div className="shell">
       <a className="skip" href="#main">Skip to content</a>
+
+      {/* Sidebar on desktop, shows tabs and match formula */}
       <aside className="side">
         <div className="side-brand">
           <div className="mark">UM</div>
@@ -126,9 +63,9 @@ export default function App() {
           </div>
         </div>
         <div className="side-label">Workspace</div>
-        <nav className="side-nav" role="tablist" aria-label="Marketplace sections">
+        <nav className="side-nav">
           {TABS.map((t, i) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'snav active' : 'snav'} onClick={() => setTab(t.id)}>
+            <button key={t.id} className={tab === t.id ? 'snav active' : 'snav'} onClick={() => setTab(t.id)}>
               <span className="n">{i + 1}</span>{t.label}
             </button>
           ))}
@@ -144,12 +81,13 @@ export default function App() {
           </div>
           <div className="mono small side-tech">PostGIS · YOLOv8n · FastAPI · Cesium</div>
         </div>
-        <div className="side-status" title="Backend status">
+        <div className="side-status">
           <span className={health ? 'dot ok' : 'dot bad'} />
-          {health ? `${health.listings} listings · ${health.yolo ? 'YOLOv8' : 'Mock AI'}` : 'connecting…'}
+          {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
         </div>
       </aside>
 
+      {/* Main content area */}
       <div className="main">
         <header className="topbar">
           <div>
@@ -157,11 +95,12 @@ export default function App() {
             <p>Turn demolition waste into revenue. {active.sub}</p>
           </div>
           <div className="spacer" />
-          <div className="status-pill" title="Backend status">
+          <div className="status-pill">
             <span className={health ? 'dot ok' : 'dot bad'} />
-            {health ? `${health.listings} listings · ${health.yolo ? 'YOLOv8' : 'Mock AI'}` : 'connecting…'}
+            {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
           </div>
         </header>
+
         <main className="page" id="main">
           <div className="tab-panel" key={tab}>
             {tab === 'upload' && <UploadPanel />}
@@ -171,34 +110,53 @@ export default function App() {
             {tab === 'impact' && <ImpactPanel />}
           </div>
         </main>
-        <footer className="foot mono">UrbanMine MVP · React + FastAPI + YOLO + PostgreSQL/PostGIS-ready · Cesium 3D globe · localhost:5173 ↔ :8000</footer>
+
+        <footer className="foot mono">
+          UrbanMine MVP · React + FastAPI + YOLO + Cesium · localhost:5173 ↔ :8000
+        </footer>
       </div>
     </div>
   )
 }
 
-/* ---------- 1 · Upload + AI ---------- */
+// ============================================================
+// 1 · Upload + AI panel
+// ============================================================
 function UploadPanel() {
+  // file is the photo user dropped
   const [file, setFile] = useState(null)
+  // preview is the image shown on screen before upload
   const [preview, setPreview] = useState(null)
+  // dets is the list of materials AI found
   const [dets, setDets] = useState([])
+  // others is things that are NOT construction (bedsheet, person, clothes)
   const [others, setOthers] = useState([])
+  // isSite tells if photo looks like construction site
   const [isSite, setIsSite] = useState(true)
+  // loading is true while AI is thinking
   const [loading, setLoading] = useState(false)
+  // model is which AI model was used
   const [model, setModel] = useState('')
+  // form has lat, lng, address, contractor
   const [form, setForm] = useState({ lat: BLR.lat, lng: BLR.lng, address: 'Koramangala, Bengaluru', contractor: 'Sharma Demolition Co.' })
+  // locSource says where location came from (photo EXIF, map, GPS, preset)
   const [locSource, setLocSource] = useState('')
+  // saved is listings already published
   const [saved, setSaved] = useState([])
+  // error shows error message
   const [error, setError] = useState('')
-  const [phase, setPhase] = useState('idle') // idle | exif | detect | done
+  // phase is idle | exif | detect | done
+  const [phase, setPhase] = useState('idle')
+  // exifNote is message about GPS found or not found
   const [exifNote, setExifNote] = useState('')
+  // preppedRef holds the shrunk photo blob
   const preppedRef = useRef(null)
 
+  // when component unmounts, revoke preview URL to free memory
   useEffect(() => () => { setPreview(p => { if (p) URL.revokeObjectURL(p); return null }) }, [])
 
-  // Shrink before upload: phone photos are 5-15MB but the models see ≤640px.
-  // Canvas also normalizes HEIC → JPEG. EXIF GPS is read from the original
-  // beforehand, so nothing is lost.
+  // shrink photo to max 1600px before upload
+  // phone photos are 5-15MB, we make them smaller so upload is fast
   const prepImage = (f) => new Promise((resolve) => {
     const url = URL.createObjectURL(f)
     const img = new Image()
@@ -218,6 +176,7 @@ function UploadPanel() {
     img.src = url
   })
 
+  // update location when LocationPicker changes
   const setLoc = ({ lat, lng, address, source }) => {
     setForm(s => ({
       ...s,
@@ -228,6 +187,7 @@ function UploadPanel() {
     if (source) setLocSource(source)
   }
 
+  // send photo to backend /api/analyze
   const runAnalyze = async (f, plat, plng, paddr) => {
     const fd = new FormData()
     fd.append('file', f, 'photo.jpg')
@@ -235,10 +195,10 @@ function UploadPanel() {
     try {
       const r = await fetch(`${API}/api/analyze`, { method: 'POST', body: fd })
       const j = await r.json()
-      if (j.error) {
-        setError(j.error);
-      } else {
-        setDets(j.detections || []); setModel(j.model || '')
+      if (j.error) { setError(j.error) }
+      else {
+        setDets(j.detections || [])
+        setModel(j.model || '')
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
       }
@@ -246,7 +206,7 @@ function UploadPanel() {
     setLoading(false); setPhase('done')
   }
 
-  // The AI reads the photo first: GPS from EXIF when present, then materials.
+  // called when user drops or selects a photo
   const onFile = async (f) => {
     if (!f) return
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f) })
@@ -254,6 +214,8 @@ function UploadPanel() {
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     try {
+      // exifr reads GPS from photo metadata
+      // if photo has GPS tag, we use it as location
       const g = await exifr.gps(f)
       if (g && g.latitude && g.longitude) {
         plat = +g.latitude.toFixed(5); plng = +g.longitude.toFixed(5)
@@ -263,27 +225,25 @@ function UploadPanel() {
       } else {
         setExifNote('No GPS tag in this photo. Set the site below.')
       }
-    } catch {
-      setExifNote('No GPS tag in this photo. Set the site below.')
-    }
+    } catch { setExifNote('No GPS tag in this photo. Set the site below.') }
     setPhase('detect')
     const blob = await prepImage(f)
-    if (!blob) {
-      setError("Couldn't read that photo. Please use JPG or PNG.");
-      setLoading(false); setPhase('idle'); return
-    }
+    if (!blob) { setError("Couldn't read that photo. Please use JPG or PNG."); setLoading(false); setPhase('idle'); return }
     preppedRef.current = blob
     await runAnalyze(blob, plat, plng, form.address)
   }
 
+  // re-run AI on same photo
   const reanalyse = () => {
     if (!file) { setError('Drop a demolition photo first.'); return }
     setError(''); setLoading(true); setPhase('detect')
     runAnalyze(preppedRef.current || file, form.lat, form.lng, form.address)
   }
 
+  // change one field of one detection (qty, unit, condition, price)
   const updateDet = (i, k, v) => setDets(d => d.map((x, j) => j === i ? { ...x, [k]: v } : x))
 
+  // send confirmed detection to backend to create listing
   const confirm = async (d) => {
     const body = {
       material: d.material, quantity: Number(d.quantity), unit: d.unit,
@@ -317,7 +277,7 @@ function UploadPanel() {
             {preview ? <img src={preview} alt="Demolition site preview" /> : <div className="drop-empty"><b>Drop photo / click to browse</b><span>JPG, PNG — site, pile, interior</span></div>}
           </label>
           <div className="snap-row">
-            <label className="cta sm">📷 Snap with camera<input type="file" accept="image/*" capture="environment" className="visually-hidden" onChange={e => e.target.files[0] && onFile(e.target.files[0])} aria-label="Take a site photo with the camera" /></label>
+            <label className="cta sm">📷 Snap with camera<input type="file" accept="image/*" capture="environment" className="visually-hidden" onChange={e => e.target.files[0] && onFile(e.target.files[0])} aria-label="Take a site photo" /></label>
             <span className="mono small muted">mobile: rear camera · GPS tag auto-read</span>
           </div>
           {loading && (
@@ -346,7 +306,7 @@ function UploadPanel() {
           {loading && <div className="skel"><i /><i /><i /></div>}
           {!loading && dets.length === 0 && <div className="empty">Drop a photo on the left. Analysis starts automatically.<br />Site photos yield materials; anything else gets flagged as non-construction.</div>}
           {!loading && phase === 'done' && !isSite && (
-            <div className="err" role="alert">Doesn't look like a construction site. No reusable materials found. Try a demolition, rubble or interior-strip photo.</div>
+            <div className="err" role="alert">Doesn't look like a construction site. No reusable materials found.</div>
           )}
           {!loading && others.length > 0 && (
             <div className="noncon">
@@ -385,15 +345,24 @@ function UploadPanel() {
   )
 }
 
-/* ---------- 2 · Marketplace + Map ---------- */
+// ============================================================
+// 2 · Marketplace + Map panel
+// ============================================================
 function MarketPanel() {
+  // items is the list of listings from backend
   const [items, setItems] = useState([])
+  // f has filters: search, material, condition, distance, location
   const [f, setF] = useState({ q: '', material: '', condition: '', max_distance_km: 100, lat: BLR.lat, lng: BLR.lng, address: 'Koramangala, Bengaluru', source: '' })
+  // mats is list of material names for dropdown
   const [mats, setMats] = useState([])
+  // mapRef is the Cesium map div
   const mapRef = useRef(null)
+  // mapObj is the Cesium viewer object
   const mapObj = useRef(null)
+  // mapError shows if globe failed to load
   const [mapError, setMapError] = useState('')
 
+  // load listings from backend with current filters
   const load = async () => {
     const p = new URLSearchParams({ ...f, q: f.q || '', material: f.material || '' })
     if (!f.material) p.delete('material')
@@ -404,21 +373,16 @@ function MarketPanel() {
   }
   useEffect(() => { load() }, [f.lat, f.lng])
   useEffect(() => { fetch(`${API}/api/materials`).then(r => r.json()).then(j => setMats(j.map(m => m.name))).catch(() => {}) }, [])
-  // Cesium 3D globe: init once, pins refresh with results, camera follows buyer.
+
+  // init Cesium globe once, show pins, follow buyer location
   useEffect(() => {
     let alive = true
     ;(async () => {
-      if (!window.Cesium) {
-        setMapError('3D library failed to load. Check the connection and refresh. Filters below still work.')
-        return
-      }
+      if (!window.Cesium) { setMapError('3D library failed to load. Filters still work.'); return }
       if (!mapRef.current) return
       const viewer = await createViewer(mapRef.current)
       if (!alive) { if (viewer && !viewer.isDestroyed()) viewer.destroy(); return }
-      if (!viewer) {
-        setMapError('Globe failed to start (WebGL or tiles unreachable). Search, presets and GPS still work.')
-        return
-      }
+      if (!viewer) { setMapError('Globe failed to start. Search and GPS still work.'); return }
       mapObj.current = viewer
       flyTo(viewer, BLR.lat, BLR.lng, 150000)
     })()
@@ -427,12 +391,13 @@ function MarketPanel() {
   useEffect(() => { if (mapObj.current) setPins(mapObj.current, items) }, [items])
   useEffect(() => { if (mapObj.current) flyTo(mapObj.current, f.lat, f.lng, 60000) }, [f.lat, f.lng])
 
+  // reqForm has buyer name, type, message
   const [reqForm, setReqForm] = useState({ buyer_name: 'Architect A', buyer_type: 'Architect', message: '' })
   const [notice, setNotice] = useState('')
   const request = async (l) => {
     await fetch(`${API}/api/requests`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity })
+      body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity }),
     })
     setNotice(`Requested: ${l.title}. The contractor sees it under Requests.`)
   }
@@ -477,25 +442,30 @@ function MarketPanel() {
         </div>
         <div className="card bezel map-card"><div className="card-in">
           <h2>Nearby · 3D globe</h2>
-          <div ref={mapRef} className="map" role="application" aria-label="3D globe of nearby reclaimed material listings" />
+          <div ref={mapRef} className="map" role="application" aria-label="3D globe of nearby listings" />
           {mapError && <div className="err" role="alert">{mapError}</div>}
-          <div className="mono small">Cesium globe · satellite view keyless (ion terrain + 3D tiles with API key) · click a pin for details · PostGIS distance drives ranking.</div>
+          <div className="mono small">Cesium globe · satellite view keyless · click a pin for details.</div>
         </div></div>
       </div>
     </div>
   )
 }
 
-/* ---------- 3 · Smart Match ---------- */
+// ============================================================
+// 3 · Smart Match panel
+// ============================================================
 function MatchPanel() {
+  // q has what buyer is looking for: material, qty, location, condition, distance
   const [q, setQ] = useState({ material: 'Wood', quantity: 500, lat: BLR.lat, lng: BLR.lng, condition: 'Good', max_distance_km: 50, address: 'Koramangala, Bengaluru', source: '' })
+  // res is the ranked match results
   const [res, setRes] = useState([])
+  // mats is material names for dropdown
   const [mats, setMats] = useState([])
 
   const run = async () => {
     const r = await fetch(`${API}/api/match`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...q, quantity: Number(q.quantity), lat: Number(q.lat), lng: Number(q.lng), max_distance_km: Number(q.max_distance_km) })
+      body: JSON.stringify({ ...q, quantity: Number(q.quantity), lat: Number(q.lat), lng: Number(q.lng), max_distance_km: Number(q.max_distance_km) }),
     })
     const j = await r.json()
     setRes(j.results || [])
@@ -533,14 +503,17 @@ function MatchPanel() {
   )
 }
 
-/* ---------- 4 · Requests ---------- */
+// ============================================================
+// 4 · Requests panel
+// ============================================================
 function RequestsPanel() {
+  // rows is all buyer requests
   const [rows, setRows] = useState([])
   useEffect(() => { fetch(`${API}/api/requests`).then(r => r.json()).then(setRows) }, [])
   const setStatus = async (id, status) => {
     const r = await fetch(`${API}/api/requests/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status }),
     })
     const j = await r.json()
     setRows(rows => rows.map(x => x.id === id ? j : x))
@@ -548,12 +521,12 @@ function RequestsPanel() {
   return (
     <div className="card bezel"><div className="card-in">
       <h2>Buyer requests</h2>
-      <p className="muted">Buyer clicks “Request Material” → contractor accepts or declines here (MVP: no payments, just handshake).</p>
+      <p className="muted">Buyer clicks "Request Material" → contractor accepts or declines here.</p>
       {rows.length === 0 && <div className="empty">No requests yet. Request something from the Marketplace.</div>}
       {rows.map(r => (
         <div key={r.id} className="match-row">
           <span className="tag">{r.status}</span>
-          <div><b>{r.listing_title}</b><div className="muted small">{r.buyer_name} ({r.buyer_type}) · {r.quantity} units · “{r.message || '—'}” · contractor: {r.contractor}</div></div>
+          <div><b>{r.listing_title}</b><div className="muted small">{r.buyer_name} ({r.buyer_type}) · {r.quantity} units · "{r.message || '—'}" · contractor: {r.contractor}</div></div>
           {r.status === 'pending' ? (
             <span>
               <button type="button" className="cta sm" onClick={() => setStatus(r.id, 'accepted')}>Accept</button>
@@ -567,17 +540,20 @@ function RequestsPanel() {
   )
 }
 
-/* ---------- 5 · Impact ---------- */
+// ============================================================
+// 5 · Impact panel
+// ============================================================
 function ImpactPanel() {
+  // d is impact data from backend
   const [d, setD] = useState(null)
   useEffect(() => { fetch(`${API}/api/impact`).then(r => r.json()).then(setD) }, [])
-  const cards = useMemo(() => d ? [
+  if (!d) return <div className="empty">Loading impact…</div>
+  const cards = [
     ['Material diverted', `${d.tonnes_diverted} tonnes`, 'vs landfill', 'paint-g'],
     ['Value recovered', d.value_recovered_fmt, `${d.active_listings} active listings`, 'paint-y'],
     ['Buyer matches', d.buyer_matches, `${d.total_requests} direct requests`, 'paint-p'],
     ['Active listings', d.active_listings, 'live now', 'paint-r'],
-  ] : [], [d])
-  if (!d) return <div className="empty">Loading impact…</div>
+  ]
   return (
     <div>
       <div className="impact-grid">
@@ -588,8 +564,8 @@ function ImpactPanel() {
         ))}
       </div>
       <div className="card bezel"><div className="card-in">
-        <h2>How it’s computed (MVP)</h2>
-        <p className="muted">Tonnes ≈ Σ qty × material CO₂ factor / 1000 · Value = Σ qty × price · Matches = seed 43 + live requests. Swap factors for LCA data in prod.</p>
+        <h2>How it's computed (MVP)</h2>
+        <p className="muted">Tonnes ≈ Σ qty × material CO₂ factor / 1000 · Value = Σ qty × price · Matches = seed 43 + live requests.</p>
       </div></div>
     </div>
   )
