@@ -112,29 +112,46 @@ This is React + Vite, not Next.js. The variable is `VITE_API_BASE`, not
 `NEXT_PUBLIC_API_URL`. The analyze call is already wired in `App.jsx` as
 `POST /api/analyze` with multipart `file`.
 
-Vite bakes the value into the build, so set it and build in one step:
+The frontend is the only public URL. `frontend/vercel.json` rewrites
+`/api/*` to the backend alias, so the browser calls the same origin and CORS
+never enters the picture:
+
+```json
+"rewrites": [
+  {
+    "source": "/api/(.*)",
+    "destination": "https://backend-one-chi-21.vercel.app/api/$1"
+  }
+]
+```
+
+Build without `VITE_API_BASE`. It defaults to an empty string, which makes
+every fetch relative:
 
 ```bash
 cd frontend
 vercel link --yes
-vercel deploy --prod --yes -b VITE_API_BASE=https://backend-one-chi-21.vercel.app
+vercel deploy --prod --yes
 ```
 
-To change it later, redeploy with the new `-b` value. Setting the env var in
-the dashboard alone does nothing until a new build runs.
-
-The backend allows all origins, so the Vercel domain can call it directly.
+If the backend alias changes, update the rewrite and redeploy. The frontend
+URL stays the same.
 
 ## 4. Check the live app
 
 ```bash
-curl https://backend-one-chi-21.vercel.app/api/health
+curl https://frontend-beta-eight-0lk6qa024w.vercel.app/api/health
+# {"status":"ok","yolo":true,"world":true,"store":"postgres","listings":6}
 ```
 
-Open the frontend URL and upload a photo. A real demolition photo should
-return detections and a listing draft. A bedsheet, person, or food photo
-should come back with `is_construction_site: false` and no listings. Add
-`?debug=1` to the analyze request to see the raw boxes and the CLIP scores.
+Open that same frontend URL and upload a photo. A real demolition photo
+should return detections and a listing draft. A bedsheet, person, or food
+photo should come back with `is_construction_site: false` and no listings.
+Add `?debug=1` to the analyze request to see the raw boxes and the CLIP
+scores.
+
+The backend alias still works directly for debugging, but users only need
+the frontend URL.
 
 The first analyze request on a cold container loads the weights and can take
 30-60s. Later requests on the same warm instance are much faster.
