@@ -298,18 +298,21 @@ def merge_hits(world_hits, yolo_hits):
     #   world_hits - list of (mat, conf, area, box) from YOLO-World
     #   yolo_hits  - list of (mat, conf, area, box) from YOLOv8n
     #
-    # OUT: dict {material: {"conf": float, "cov": float, "source": str}}
-    # WHY: if both models find bricks, keep the higher confidence and note both sources
+    # OUT: dict {material: {"conf", "cov", "source", "box"}}
+    # WHY: if both models find bricks, keep the higher confidence and note both sources.
+    #      The box comes from the hit that won, so the UI can crop that exact part.
     merged = {}
-    for mat, conf, area, _box in world_hits:
-        merged[mat] = {"conf": conf, "cov": area, "source": "yolo-world"}
-    for mat, conf, area, _box in yolo_hits:
+    for mat, conf, area, box in world_hits:
+        merged[mat] = {"conf": conf, "cov": area, "source": "yolo-world", "box": box}
+    for mat, conf, area, box in yolo_hits:
         if mat in merged:
-            merged[mat]["conf"] = max(merged[mat]["conf"], conf)
+            if conf > merged[mat]["conf"]:
+                merged[mat]["conf"] = conf
+                merged[mat]["box"] = box
             merged[mat]["cov"] = max(merged[mat]["cov"], area)
             merged[mat]["source"] += " + yolov8n"
         else:
-            merged[mat] = {"conf": conf, "cov": area, "source": "yolov8n"}
+            merged[mat] = {"conf": conf, "cov": area, "source": "yolov8n", "box": box}
     return merged
 
 
@@ -409,21 +412,35 @@ def fallback_guess(merged, frame_ok, fabric_cov, has_subject):
     return merged
 
 
-def build_detections(merged, condition):
+def build_detections(merged, condition, size=None):
     # format merged dict into UI detection objects
     #
     # IN:
     #   merged    - dict from fallback_guess
     #   condition - string from visual_estimate ("Good" or "Fair")
+    #   size      - (width, height) of the image the boxes were measured on
     #
-    # OUT: list of detection dicts with material, icon, quantity, unit, etc.
-    # WHY: turn internal data into the shape the frontend expects
+    # OUT: list of detection dicts with material, bbox, quantity, unit, etc.
+    # WHY: turn internal data into the shape the frontend expects.
+    #      bbox is normalized 0..1 so the browser can crop the same area
+    #      from the original photo, no matter what size it is.
     dets = []
+    width, height = size or (0, 0)
     for mat, m in sorted(merged.items(), key=lambda kv: -kv[1]["conf"]):
         meta = MATERIAL_META[mat]
+        bbox = None
+        box = m.get("box")
+        if box and width and height:
+            x1, y1, x2, y2 = box
+            bbox = [
+                round(max(0.0, min(x1 / width, 1.0)), 4),
+                round(max(0.0, min(y1 / height, 1.0)), 4),
+                round(max(0.0, min(x2 / width, 1.0)), 4),
+                round(max(0.0, min(y2 / height, 1.0)), 4),
+            ]
         dets.append({
             "material": mat,
-            "icon": meta["icon"],
+            "bbox": bbox,
             "quantity": qty_for(mat, m["cov"]),
             "unit": meta["unit"],
             "condition": condition,
@@ -523,7 +540,7 @@ def detect_materials(image_bytes):
     merged = fallback_guess(merged, frame_ok, fabric_cov, has_subject)
 
     # Step 9: format detections for the UI
-    dets = build_detections(merged, condition)
+    dets = build_detections(merged, condition, image.size)
 
     # Step 10: normalize shares to 100%
     dets = normalize_shares(dets)

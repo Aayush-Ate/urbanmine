@@ -87,7 +87,11 @@ input, select {
 .cta.sm { padding: 8px 6px 8px 14px; font-size: 13px; }
 .det { border-top: 1px solid var(--line); padding: 14px 0; display: grid; gap: 6px; animation: rise .7s var(--ease) both; }
 .det-top { display: flex; gap: 10px; align-items: center; }
-.det-ic { font-size: 22px; }
+.det-crop { width: 80px; height: 80px; border-radius: 10px; object-fit: contain; border: 1px solid var(--line); background: #bdbdbd; flex: none; display: block; }
+.det-crop-empty { display: block; }
+/* the crop is a button so a tap opens the full photo with the box drawn on it */
+.det-crop-btn { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 10px; flex: none; line-height: 0; }
+.det-crop-btn:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
 .conf { margin-left: auto; font-family: var(--font-mono); background: #d9d9d9; border: 1px solid #1f1f1f; border-radius: 99px; padding: 4px 10px; font-size: 12px; }
 .ok-box { background: var(--green); color: #d9d9d9; border-radius: 12px; padding: 10px 14px; margin-top: 10px; font-weight: 600; }
 .empty { border: 1px dashed var(--line); border-radius: 14px; padding: 26px; text-align: center; color: var(--ink2); background: #e6e6e6; }
@@ -122,13 +126,15 @@ input, select {
 /* Mobile shell: bottom tab bar + brand bar + thumb-first spacing */
 .m-shell { display: block; }
 .m-top { position: sticky; top: 0; z-index: 20; display: flex; gap: 10px; align-items: center; background: var(--forest); color: #d9d9d9; padding: 12px 14px; }
+.m-title { flex: 1; min-width: 0; }
 .m-top .mark { width: 32px; height: 32px; font-size: 13px; }
-.m-brand { font-family: var(--font-display); font-weight: 600; font-size: 21px; text-transform: uppercase; letter-spacing: .02em; line-height: 1; }
+.m-brand { font-family: var(--font-display); font-weight: 600; font-size: 21px; text-transform: uppercase; letter-spacing: .02em; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-sub { font-size: 11px; opacity: .7; }
 .m-top .dot { margin-left: auto; }
 .m-page { padding: 14px 12px 12px; }
 .m-page .filters { grid-template-columns: 1fr; }
 .m-page .impact-grid { grid-template-columns: 1fr; }
+.m-page .loc-row { grid-template-columns: 1fr; }
 .m-page .map { height: 300px; }
 .m-page .cta { width: 100%; justify-content: center; }
 .m-foot { padding-bottom: 92px; }
@@ -176,3 +182,40 @@ input, select {
 .impact.paint-r { background: var(--red); color: #d9d9d9; }
 .impact.paint-y { background: var(--yellow); color: #1f1f1f; }
 .impact[class*="paint-"] .muted { color: inherit; opacity: .75; }
+
+/* Crop viewer: full photo with the detected box outlined, so the user can
+   check where the AI actually looked before confirming a listing. */
+.crop-modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(15, 15, 15, .82);
+  display: grid; place-items: center; padding: 20px;
+  animation: crop-fade .2s var(--ease) both;
+}
+.crop-view { display: grid; gap: 10px; max-width: min(1100px, 96vw); }
+.crop-frame {
+  position: relative; display: inline-block; justify-self: center;
+  background: #1f1f1f; border: 1px solid #6a6a6a; border-radius: 8px; overflow: hidden;
+  line-height: 0;
+}
+.crop-frame img { display: block; max-width: 100%; max-height: 76vh; width: auto; height: auto; }
+.crop-box {
+  position: absolute; border: 2px solid #ffd400;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, .45);
+  border-radius: 2px; pointer-events: none;
+}
+.crop-view-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  background: #e6e6e6; border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font-size: 14px;
+}
+.crop-close {
+  border: 1px solid var(--line); background: #1f1f1f; color: #e6e6e6;
+  border-radius: 99px; padding: 7px 16px; font: inherit; font-weight: 700; cursor: pointer;
+}
+.crop-close:hover { background: var(--forest); }
+@keyframes crop-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 900px) {
+  .crop-modal { padding: 10px; }
+  .crop-frame img { max-height: 68vh; }
+  .crop-view-bar { font-size: 13px; }
+}

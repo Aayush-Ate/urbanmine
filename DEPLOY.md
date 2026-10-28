@@ -130,8 +130,36 @@ every fetch relative:
 
 ```bash
 cd frontend
-vercel link --yes
-vercel deploy --prod --yes
+vercel deploy --prod --yes --project fullstackproject
+```
+
+The Vercel project is `fullstackproject`. Its production deployment gets an
+auto-generated URL, and the public URL is the alias:
+
+```
+https://fullstackproject-app.vercel.app
+```
+
+`fullstackproject.vercel.app` was already taken, so the public alias has the
+`-app` suffix. The project's default URL
+(`frontend-beta-eight-0lk6qa024w.vercel.app`) keeps changing with deploys and
+is not the link to share. After every production deploy, point the alias at
+the new deployment:
+
+```bash
+vercel alias set <deployment-url> fullstackproject-app.vercel.app
+```
+
+The alias does not follow new deployments by itself. Use the deployment URL
+printed by `vercel deploy` (or `--json` and read `.deployment.url`). Skipping
+this step leaves the old build live at the public URL.
+
+The project has Vercel Authentication turned off (`ssoProtection: null`).
+Without that, the alias answers with a 302 to the Vercel login page even
+though the deployment is fine. Check it with:
+
+```bash
+vercel project protection fullstackproject
 ```
 
 If the backend alias changes, update the rewrite and redeploy. The frontend
@@ -140,7 +168,7 @@ URL stays the same.
 ## 4. Check the live app
 
 ```bash
-curl https://frontend-beta-eight-0lk6qa024w.vercel.app/api/health
+curl https://fullstackproject-app.vercel.app/api/health
 # {"status":"ok","yolo":true,"world":true,"store":"postgres","listings":6}
 ```
 

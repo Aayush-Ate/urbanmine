@@ -18,6 +18,7 @@ class TestMergeHits(unittest.TestCase):
         merged = vision.merge_hits(world, yolo)
         self.assertEqual(merged["Bricks"]["conf"], 0.70)
         self.assertEqual(merged["Bricks"]["cov"], 0.35)
+        self.assertEqual(merged["Bricks"]["box"], (0, 0, 20, 20))
         self.assertIn("yolo-world", merged["Bricks"]["source"])
         self.assertIn("yolov8n", merged["Bricks"]["source"])
 
@@ -25,6 +26,20 @@ class TestMergeHits(unittest.TestCase):
         merged = vision.merge_hits([("Wood", 0.5, 0.2, (0, 0, 5, 5))],
                                    [("Metal", 0.6, 0.3, (0, 0, 6, 6))])
         self.assertEqual(set(merged), {"Wood", "Metal"})
+
+
+class TestDetectionShape(unittest.TestCase):
+    def test_bbox_is_normalized_to_the_frame(self):
+        merged = {"Wood": {"conf": 0.8, "cov": 0.2, "source": "yolov8n",
+                           "box": (10, 20, 110, 220)}}
+        dets = vision.build_detections(merged, "Good", (200, 400))
+        self.assertEqual(dets[0]["bbox"], [0.05, 0.05, 0.55, 0.55])
+        self.assertNotIn("icon", dets[0])
+
+    def test_visual_hit_without_a_box_has_no_bbox(self):
+        merged = {"Concrete": {"conf": 0.4, "cov": 0.3, "source": "visual estimate"}}
+        dets = vision.build_detections(merged, "Fair", (200, 400))
+        self.assertIsNone(dets[0]["bbox"])
 
 
 class TestShares(unittest.TestCase):

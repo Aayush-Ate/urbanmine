@@ -38,6 +38,105 @@ function fmtINR(n) {
   return '₹' + Number(n).toLocaleString('en-IN')
 }
 
+// useIsMobile follows the 900px breakpoint.
+// CSS cannot swap the sidebar shell for the bottom-tab shell, so React
+// picks one tree. The listener keeps it correct when the window resizes.
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const onChange = (e) => setMobile(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return mobile
+}
+
+// CropThumb cuts the detected box out of the uploaded photo.
+// The backend sends bbox as 0..1 values, so the crop matches the photo
+// at any screen size. No bbox means a color-only hit, so show the frame.
+function CropThumb({ src, bbox, alt, onOpen }) {
+  const [url, setUrl] = useState('')
+
+  useEffect(() => {
+    if (!src) { setUrl(''); return }
+    let alive = true
+    const img = new Image()
+    img.onload = () => {
+      if (!alive) return
+      const w = img.naturalWidth
+      const h = img.naturalHeight
+      const [nx1, ny1, nx2, ny2] = bbox || [0, 0, 1, 1]
+      const padX = (nx2 - nx1) * 0.12
+      const padY = (ny2 - ny1) * 0.12
+      const x1 = Math.max(0, (nx1 - padX) * w)
+      const y1 = Math.max(0, (ny1 - padY) * h)
+      const x2 = Math.min(w, (nx2 + padX) * w)
+      const y2 = Math.min(h, (ny2 + padY) * h)
+      const sw = Math.max(1, x2 - x1)
+      const sh = Math.max(1, y2 - y1)
+      const size = 200
+      // contain the whole box so the user sees everything the model saw.
+      // cover would cut the sides off wide boxes and hide the material.
+      const scale = Math.min(size / sw, size / sh)
+      const dw = sw * scale
+      const dh = sh * scale
+      const c = document.createElement('canvas')
+      c.width = size
+      c.height = size
+      const ctx = c.getContext('2d')
+      ctx.fillStyle = '#bdbdbd'
+      ctx.fillRect(0, 0, size, size)
+      ctx.drawImage(img, x1, y1, sw, sh, (size - dw) / 2, (size - dh) / 2, dw, dh)
+      setUrl(c.toDataURL('image/jpeg', 0.82))
+    }
+    img.onerror = () => { if (alive) setUrl('') }
+    img.src = src
+    return () => { alive = false }
+  }, [src, bbox])
+
+  if (!url) return (
+    <button type="button" className="det-crop-btn" onClick={onOpen} aria-label={`${alt}. Open full photo`}>
+      <div className="det-crop det-crop-empty" aria-hidden="true" />
+    </button>
+  )
+  return (
+    <button type="button" className="det-crop-btn" onClick={onOpen} aria-label={`${alt}. Open full photo`}>
+      <img className="det-crop" src={url} alt={alt} title={alt} />
+    </button>
+  )
+}
+
+// CropViewer shows the whole photo with the detected box outlined.
+// The thumbnail answers "what did it see"; this answers "where exactly".
+function CropViewer({ src, bbox, material, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const [x1, y1, x2, y2] = bbox || [0, 0, 1, 1]
+  return (
+    <div className="crop-modal" role="dialog" aria-modal="true" aria-label={`Detected ${material} area`} onClick={onClose}>
+      <div className="crop-view" onClick={e => e.stopPropagation()}>
+        <div className="crop-frame">
+          <img src={src} alt={`Full photo with the ${material} detection highlighted`} />
+          <span className="crop-box" style={{
+            left: `${x1 * 100}%`, top: `${y1 * 100}%`,
+            width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
+          }} />
+        </div>
+        <div className="crop-view-bar">
+          <span>AI saw this area for <b>{material}</b></span>
+          <button type="button" className="crop-close" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   // tab is which tab is currently open
   const [tab, setTab] = useState('upload')
@@ -77,6 +176,48 @@ export default function App() {
   }, [tab])
 
   const active = TABS.find(t => t.id === tab) || TABS[0]
+  const isMobile = useIsMobile()
+
+  // Phones get the brand bar and bottom tab bar. Laptops keep the sidebar.
+  // Same panels, same API calls, only the shell changes.
+  if (isMobile) {
+    return (
+      <div className="shell m-shell" ref={pageRef}>
+        <a className="skip" href="#main">Skip to content</a>
+
+        <header className="m-top">
+          <div className="mark">UM</div>
+          <div className="m-title">
+            <div className="m-brand">UrbanMine · {active.title}</div>
+            <div className="m-sub">{active.sub}</div>
+          </div>
+          <span className={health ? 'dot ok' : 'dot bad'} title="Backend status" />
+        </header>
+
+        <main className="page m-page" id="main">
+          <div className="tab-panel" key={tab}>
+            {tab === 'upload' && <UploadPanel />}
+            {tab === 'market' && <MarketPanel />}
+            {tab === 'match' && <MatchPanel />}
+            {tab === 'requests' && <RequestsPanel />}
+            {tab === 'impact' && <ImpactPanel />}
+          </div>
+        </main>
+
+        <footer className="foot mono m-foot">
+          UrbanMine · {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
+        </footer>
+
+        <nav className="m-tabs" role="tablist" aria-label="Marketplace sections">
+          {TABS.map((t, i) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'mtab active' : 'mtab'} onClick={() => setTab(t.id)}>
+              <span className="num">{i + 1}</span>{t.short}
+            </button>
+          ))}
+        </nav>
+      </div>
+    )
+  }
 
   return (
     <div className="shell" ref={pageRef}>
@@ -92,9 +233,9 @@ export default function App() {
           </div>
         </div>
         <div className="side-label">Workspace</div>
-        <nav className="side-nav">
+        <nav className="side-nav" role="tablist" aria-label="Marketplace sections">
           {TABS.map((t, i) => (
-            <button key={t.id} className={tab === t.id ? 'snav active' : 'snav'} onClick={() => setTab(t.id)}>
+            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'snav active' : 'snav'} onClick={() => setTab(t.id)}>
               <span className="n">{i + 1}</span>{t.label}
             </button>
           ))}
@@ -156,6 +297,8 @@ function UploadPanel() {
   const [file, setFile] = useState(null)
   // preview is the image shown on screen before upload
   const [preview, setPreview] = useState(null)
+  // zoom holds the detection whose full photo is open
+  const [zoom, setZoom] = useState(null)
   // dets is the list of materials AI found
   const [dets, setDets] = useState([])
   // others is things that are NOT construction (bedsheet, person, clothes)
@@ -347,7 +490,7 @@ function UploadPanel() {
           )}
           {dets.map((d, i) => (
             <div key={i} className="det">
-              <div className="det-top"><span className="det-ic">{d.icon}</span><span className="mdot" style={{ background: MATERIAL_PAINT[d.material] || '#1f1f1f' }} /><b>{d.material}</b>
+              <div className="det-top"><CropThumb src={preview} bbox={d.bbox} alt={`Detected ${d.material} crop`} onOpen={() => setZoom({ src: preview, bbox: d.bbox, material: d.material })} /><span className="mdot" style={{ background: MATERIAL_PAINT[d.material] || '#1f1f1f' }} /><b>{d.material}</b>
                 <span className="conf" title={d.source || ''}>{d.share != null ? d.share : Math.round(d.confidence * 100)}%</span></div>
               <div className="frow">
                 <label>Qty<input type="number" value={d.quantity} onChange={e => updateDet(i, 'quantity', e.target.value)} /></label>
@@ -370,6 +513,7 @@ function UploadPanel() {
           ))}
         </div>
       </div>
+      {zoom && <CropViewer {...zoom} onClose={() => setZoom(null)} />}
     </div>
   )
 }
