@@ -3,7 +3,6 @@
 # Run with: /opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000
 
 import io
-import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,9 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from catalog import MATERIAL_META
 from schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
 from scoring import haversine_km, match_score
-from store import UPLOAD_DIR, load_db, save_db, seed_if_empty
-from vision import (_last_debug, YOLO_AVAILABLE, detect_materials, downscale_for_ai,
-                    world_model)
+from store import DATABASE_URL, UPLOAD_DIR, load_db, save_db, seed_if_empty
+from vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
 
 # this is the main app object
 # all routes are attached to this
@@ -36,18 +34,24 @@ app.add_middleware(
 
 # on first run this puts 6 starter listings into data.json
 # so the marketplace is not empty when you open it
-seed_if_empty()
+# if a database is down, the app still starts and the error shows in the log
+try:
+    seed_if_empty()
+except Exception as e:
+    print("Seed skipped:", e)
 
 
 @app.get("/api/health")
 def health():
     # this tells us if the server is alive and how many listings exist
     # yolo and world flags show if the AI models are loaded
+    # store says where the data lives: postgres or json
     db = load_db()
     return {
         "status": "ok",
         "yolo": YOLO_AVAILABLE,
         "world": bool(world_model),
+        "store": "postgres" if DATABASE_URL else "json",
         "listings": len(db["listings"]),
         "requests": len(db["requests"]),
     }
@@ -89,16 +93,13 @@ async def analyze(file: UploadFile = File(...),
     fid = f"{uuid.uuid4().hex[:10]}{ext}"
     (UPLOAD_DIR / fid).write_bytes(raw)
 
-    # shrink the photo before sending to AI
-    # phone photos are huge, AI only needs a smaller version
-    small = downscale_for_ai(raw)
-
     # this runs all the AI passes and returns what it found
+    # detect_materials shrinks the photo once inside, then reuses that copy
     # dets is the list of materials found
-    # model is which AI model was used
+    # model is which AI engines actually ran
     # others is things that are not construction (bedsheet, person, clothes)
     # is_site tells us if the photo looks like a construction site
-    dets, model, others, is_site = detect_materials(small)
+    dets, model, others, is_site = detect_materials(raw)
 
     resp = {
         "image_url": f"/uploads/{fid}",

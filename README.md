@@ -2,7 +2,7 @@
 
 In short:
 - Contractors photograph a demolition site, AI lists salvageable materials with quantities, one click publishes a listing, buyers search and match by material, quantity, distance, and condition.
-- Stack: React 18 + Vite 5, FastAPI on conda python, YOLO-World-m + YOLOv8n + color pass + CLIP gate, JSON file store (PostGIS path tested), Cesium satellite globes.
+- Stack: React 18 + Vite 5, FastAPI on conda python, YOLO-World-m + YOLOv8n + color pass + CLIP gate, Neon Postgres (JSON file fallback), Cesium satellite globes.
 - Run it: backend `:8000`, frontend `:5173`. Everything works keyless; keys only upgrade maps and geocoding.
 
 ## 1. Run
@@ -23,7 +23,15 @@ npm install
 npm run dev
 ```
 
-Notes: use the conda python. Plain `python3` lacks torch/ultralytics. First photo takes ~1 min (model download + load), then seconds. Check both:
+Notes: use the conda python. Plain `python3` lacks torch/ultralytics. First photo takes ~1 min (model download + load), then seconds. To use the Neon database locally, load `backend/.env` first:
+
+```bash
+cd urbanmine/backend
+set -a; . ./.env; set +a
+/opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000
+```
+
+Without `DATABASE_URL` the app uses `backend/data.json`. Check both:
 
 ```bash
 curl -s http://localhost:8000/api/health && curl -s -o /dev/null -w "frontend: %{http_code}\n" http://localhost:5173
@@ -87,16 +95,20 @@ Base `http://localhost:8000`. 404s are `{"detail": "..."}`.
 | `VITE_CESIUM_TOKEN` | `frontend/.env` | keyless Esri globe instead of ion terrain/3D tiles |
 | `VITE_GOOGLE_TILES_ASSET_ID` | `frontend/.env` | satellite globe instead of photorealistic 3D |
 | `VITE_HERE_API_KEY` | `frontend/.env` | Nominatim geocoding (rate-limited) instead of HERE |
-| `DATABASE_URL` | backend env | JSON file instead of PostGIS (§7) |
+| `DATABASE_URL` | backend env | JSON file instead of Postgres (§7) |
 | `VITE_API_BASE` | build-time only | localhost proxy instead of tunnel (share builds only) |
 
-## 7. Data: file today, PostGIS tomorrow
+## 7. Data: Postgres if you set it, JSON if you don't
 
-`backend/data.json`, seeded on first run. Distance uses haversine, identical to `ST_Distance(geography)/1000`. Rankings survive migration. Neon `database_q` tested with PostGIS 3.6.4; cutover DDL is in `PROJECT-FULLSTACK.md` §8.
+`store.py` checks `DATABASE_URL`. Set it and listings live in Neon Postgres as one JSONB row. Leave it empty and they live in `backend/data.json`. The rest of the app only calls `load_db()` and `save_db()`, so nothing else changes. `/api/health` says which one is active: `"store": "postgres"` or `"store": "json"`.
+
+The one-row shape is fine for a demo. Two workers saving at the same moment can overwrite each other. Split listings and requests into real tables before that matters. Distance uses haversine, which matches `ST_Distance(geography)/1000`, so rankings carry over if you move to PostGIS columns later.
+
+Hosting steps, the Neon URL, and the container hosts that can run YOLO are in [`DEPLOY.md`](DEPLOY.md).
 
 ## 8. Sharing (localhost first)
 
-The backend runs on a laptop, so any share link is a frozen frontend copy wired through a tunnel. It dies on sleep or tunnel restart, and anonymous slugs can't be revived. Demo on localhost; publish only on explicit approval.
+The backend runs on a laptop, so any share link is a frozen frontend copy wired through a tunnel. It dies on sleep or tunnel restart, and anonymous slugs can't be revived. Demo on localhost; publish only on explicit approval. For a link that stays up, host the frontend on Vercel and the backend on Render, Fly.io, or Hugging Face Spaces. `DEPLOY.md` has the commands.
 
 - Same Wi-Fi phone: `HTTPS=1 npm run dev -- --host`, open `https://<mac-lan-ip>:5173` (accept cert). Gets camera snap + bottom-tab shell.
 - Public link: `cloudflared tunnel --url http://localhost:8000`, then `VITE_API_BASE=<url> npm run build` in `frontend/`, then `scripts/publish-here.py` (reads this clone's `dist/`).
@@ -120,8 +132,8 @@ Standing rule: no new link without explicit approval; record the slug here when 
 ```
 urbanmine/
 ├── README.md, PROJECT-FULLSTACK.md, PRD.md/TRD.md (local only), LICENSE (MIT)
-├── docker-compose.yml (optional PostGIS), docs/*.excalidraw.json
-├── backend/ main.py (routes) · catalog.py · vision.py · store.py · scoring.py · schemas.py
+├── DEPLOY.md, render.yaml, docker-compose.yml (optional PostGIS), docs/*.excalidraw.json
+├── backend/ main.py (routes) · catalog.py · vision.py · store.py · scoring.py · schemas.py · Dockerfile
 └── frontend/ index.html · vite.config.js · src/ · scripts/publish-here.py
 ```
 

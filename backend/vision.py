@@ -4,9 +4,12 @@
 # Pass 1: YOLOv8n finds everyday objects (chair -> Wood, bus -> Metal)
 # Pass 2: YOLO-World finds materials with descriptive prompts (bricks -> Bricks)
 # Pass 3: Visual color looks at pixel colors on a small thumbnail
-# Then CLIP checks if weak boxes look like construction or household
+# Then CLIP checks the whole frame and any weak boxes before we trust them.
 
 import io
+import os
+
+from PIL import Image
 
 from catalog import (
     CLIP_GATE, CLIP_LABELS, COCO_TO_MATERIAL, MATERIAL_META,
@@ -33,7 +36,8 @@ def _load_yolo():
     global YOLO_AVAILABLE, yolo_model
     try:
         from ultralytics import YOLO
-        yolo_model = YOLO("yolov8n.pt")
+        path = os.getenv("YOLO_MODEL_PATH") or "yolov8n.pt"
+        yolo_model = YOLO(path)
         YOLO_AVAILABLE = True
     except Exception as e:
         print("YOLOv8n not loaded:", e)
@@ -46,7 +50,8 @@ def _load_world():
     global world_model
     try:
         from ultralytics import YOLO
-        world_model = YOLO("yolov8m-worldv2.pt")
+        path = os.getenv("WORLD_MODEL_PATH") or "yolov8m-worldv2.pt"
+        world_model = YOLO(path)
         world_model.set_classes(WORLD_CLASSES)
     except Exception as e:
         print("YOLO-World not loaded:", e)
@@ -68,19 +73,20 @@ def _load_clip():
         clip_model = False
 
 
-def _run_infer(model, image, conf, label_to_mat, ignore_set):
+def _run_infer(model, image, conf, label_to_mat, ignore_set, noncon_set):
     # shared helper for yolo_infer and world_infer
     #
     # IN:
-    #   model   - loaded ultralytics model (or False if unavailable)
-    #   image   - PIL Image (RGB)
-    #   conf    - confidence threshold (float)
-    #   label_to_mat - dict mapping label string to material name or None
-    #   ignore_set - set of labels to skip entirely (intact room surfaces)
+    #   model        - loaded ultralytics model (or False if unavailable)
+    #   image        - PIL Image (RGB)
+    #   conf         - confidence threshold (float)
+    #   label_to_mat - function mapping a label to a material, or None
+    #   ignore_set   - labels to skip entirely (intact room surfaces)
+    #   noncon_set   - labels that are household, not construction
     #
     # OUT:
-    #   hits   - list of (material, confidence, area_fraction)
-    #   others - list of {"label": str, "confidence": float} non-construction items
+    #   hits   - list of (material, confidence, area_fraction, box)
+    #   others - list of {"label": str, "confidence": float} household items
     #
     # WHY:
     #   yolo and world both produce boxes with labels and confidences.
@@ -106,13 +112,14 @@ def _run_infer(model, image, conf, label_to_mat, ignore_set):
 
         mat = label_to_mat(label)
         if mat is None:
-            if label in WORLD_NONCON:
+            if label in noncon_set:
                 others[label] = max(others.get(label, 0), c)
             continue
 
+        x1, y1, x2, y2 = (float(v) for v in b.xyxy[0])
         _, _, w, h = (float(v) for v in b.xywhn[0])
         area = max(0.0, min(w * h, 1.0))
-        hits.append((mat, c, area))
+        hits.append((mat, c, area, (x1, y1, x2, y2)))
 
     others_list = [{"label": k, "confidence": round(v, 2)} for k, v in others.items()]
     return hits, others_list
@@ -126,7 +133,7 @@ def yolo_infer(image):
     # WHY: chair, bed, couch -> Wood; car, bus, truck -> Metal
     if yolo_model is None:
         _load_yolo()
-    return _run_infer(yolo_model, image, 0.25, COCO_TO_MATERIAL.get, set())
+    return _run_infer(yolo_model, image, 0.25, COCO_TO_MATERIAL.get, set(), WORLD_NONCON)
 
 
 def world_infer(image):
@@ -137,7 +144,7 @@ def world_infer(image):
     # WHY: text prompts like "a stack of red clay bricks" find salvage materials
     if world_model is None:
         _load_world()
-    return _run_infer(world_model, image, WORLD_CONF, WORLD_PROMPTS.get, WORLD_IGNORE)
+    return _run_infer(world_model, image, WORLD_CONF, WORLD_PROMPTS.get, WORLD_IGNORE, WORLD_NONCON)
 
 
 def visual_estimate(image):
@@ -148,7 +155,6 @@ def visual_estimate(image):
     # WHY: no neural net, just checks if colors look like wood, bricks, concrete, metal
     try:
         import numpy as np
-        from PIL import Image
 
         # PIL is Python Imaging Library
         # resize((160, 160)) makes it small so color check is fast
@@ -206,13 +212,13 @@ def clip_check(crops):
         return []
     if clip_model is None:
         _load_clip()
-        if clip_model is None or clip_model is False:
-            return [1.0] * len(crops)
+    if clip_model is None or clip_model is False:
+        return [1.0] * len(crops)
     try:
         import torch
         out = []
         with torch.no_grad():
-            for c in crops[:8]:
+            for c in crops:
                 inp = clip_proc(text=CLIP_LABELS, images=c.convert("RGB").resize((224, 224)),
                                 return_tensors="pt", padding=True)
                 probs = clip_model(**inp).logits_per_image.softmax(dim=1)
@@ -227,36 +233,81 @@ def crops_of(pil_img, boxes):
     # cut out box regions from the image so CLIP can inspect each one
     #
     # IN:  PIL Image, list of (x1, y1, x2, y2, confidence) boxes
-    # OUT: list of PIL Image crops
+    # OUT: list of PIL Image crops, one per box
     # WHY: CLIP needs to look at each detected box individually, not the whole photo
     W, H = pil_img.size
     out = []
     for (x1, y1, x2, y2, _c) in boxes:
         x1, y1 = max(0, int(x1)), max(0, int(y1))
         x2, y2 = min(W, int(x2)), min(H, int(y2))
-        if x2 - x1 < 16 or y2 - y1 < 16:
+        if x2 - x1 < 2 or y2 - y1 < 2:
             continue
         out.append(pil_img.crop((x1, y1, x2, y2)))
     return out
+
+
+def clip_filter_hits(image, hits):
+    # per-box CLIP check: weak boxes must look like construction
+    #
+    # IN:  PIL Image, list of (material, confidence, area, box) hits
+    # OUT: (kept_hits, rejected) where rejected is a list for ?debug=1
+    # WHY: YOLO-World can label a bedsheet as Concrete at low confidence.
+    #      Strong boxes (0.50 and up) skip CLIP. Weak boxes get cropped and checked.
+    strong = [h for h in hits if h[1] >= 0.50]
+    weak = [h for h in hits if h[1] < 0.50]
+
+    # only check the first 8 weak boxes so a busy photo stays fast
+    check = []
+    boxes = []
+    for h in weak[:8]:
+        x1, y1, x2, y2 = h[3]
+        if x2 - x1 < 2 or y2 - y1 < 2:
+            continue
+        check.append(h)
+        boxes.append((x1, y1, x2, y2, h[1]))
+
+    if not check:
+        return strong + weak, []
+
+    crops = crops_of(image, boxes)
+    probs = clip_check(crops)
+    if len(probs) < len(check):
+        probs += [1.0] * (len(check) - len(probs))
+
+    kept = []
+    rejected = []
+    for h, p in zip(check, probs):
+        if p >= CLIP_GATE:
+            kept.append(h)
+        else:
+            rejected.append({
+                "material": h[0],
+                "confidence": round(h[1], 2),
+                "clip_p": round(p, 3),
+            })
+
+    # weak boxes after the first 8 are kept, not silently dropped
+    rest = weak[8:]
+    return strong + kept + rest, rejected
 
 
 def merge_hits(world_hits, yolo_hits):
     # combine detections from both passes into one dict
     #
     # IN:
-    #   world_hits - list of (mat, conf, area) from YOLO-World
-    #   yolo_hits  - list of (mat, conf, area) from YOLOv8n
+    #   world_hits - list of (mat, conf, area, box) from YOLO-World
+    #   yolo_hits  - list of (mat, conf, area, box) from YOLOv8n
     #
     # OUT: dict {material: {"conf": float, "cov": float, "source": str}}
     # WHY: if both models find bricks, keep the higher confidence and note both sources
     merged = {}
-    for mat, conf, area in world_hits:
+    for mat, conf, area, _box in world_hits:
         merged[mat] = {"conf": conf, "cov": area, "source": "yolo-world"}
-    for mat, conf, area in yolo_hits:
+    for mat, conf, area, _box in yolo_hits:
         if mat in merged:
-            if conf > merged[mat]["conf"]:
-                merged[mat]["conf"] = conf
-                merged[mat]["source"] += " + yolov8n"
+            merged[mat]["conf"] = max(merged[mat]["conf"], conf)
+            merged[mat]["cov"] = max(merged[mat]["cov"], area)
+            merged[mat]["source"] += " + yolov8n"
         else:
             merged[mat] = {"conf": conf, "cov": area, "source": "yolov8n"}
     return merged
@@ -287,20 +338,40 @@ def add_visual_hits(merged, visual_hits, frame_ok, fabric_cov):
     return merged
 
 
-def drop_household_hits(merged, others, frame_ok, fabric_cov):
+def collect_others(world_others, yolo_others, fabric_cov):
+    # build the non-construction list shown under the detections
+    #
+    # IN:  others from both model passes, fabric coverage
+    # OUT: one list, no duplicate labels
+    # WHY: the UI shows what was excluded, so a bedsheet or a person is visible
+    #      instead of quietly turning into a Concrete listing.
+    others = list(world_others)
+    seen = {o["label"] for o in others}
+    for o in yolo_others:
+        if o["label"] not in seen:
+            others.append(o)
+            seen.add(o["label"])
+    if fabric_cov >= 0.3:
+        others.append({
+            "label": "fabric / textile",
+            "count": 1,
+            "confidence": round(min(0.6 + fabric_cov * 0.3, 0.88), 2),
+        })
+    return others
+
+
+def drop_household_hits(merged, others):
     # remove detections that come from household photos
     #
     # IN:
-    #   merged     - dict from add_visual_hits
-    #   others     - list of non-construction items
-    #   frame_ok   - bool, does the whole photo look like construction?
-    #   fabric_cov - float, how much of the photo is bright smooth cloth
+    #   merged - dict from add_visual_hits
+    #   others - list of non-construction items
     #
-    # OUT: (merged, others) with household visual hits moved to others
+    # OUT: (merged, others, has_subject) with household visual hits moved to others
     # WHY: a bedsheet photo should not produce a Concrete listing.
     #      if people or fabric dominate, drop visual-only hits.
     subjects = ("person", "man", "woman", "child", "clothes", "bedsheet",
-                "fabric / textile", "blanket", "curtain", "dog", "cat",
+                "fabric", "fabric / textile", "blanket", "curtain", "dog", "cat",
                 "bird", "cow", "horse", "sheep", "monkey", "goat", "elephant")
     has_subject = any(o["label"] in subjects for o in others)
 
@@ -379,21 +450,36 @@ def normalize_shares(dets):
     return dets
 
 
-def is_construction_site(yolo_hits, world_hits, frame_ok, real):
+def is_construction_site(merged, frame_ok):
     # decide if the photo looks like a construction site
     #
     # IN:
-    #   yolo_hits  - list from yolo_infer
-    #   world_hits - list from world_infer
-    #   frame_ok   - bool from CLIP frame check
-    #   real       - list of merged detections that are not fallback guesses
+    #   merged   - dict after fallback_guess
+    #   frame_ok - bool from the CLIP frame check
     #
     # OUT: boolean
     # WHY: prevents random photos (bedsheet, cow, food) from becoming listings.
-    #      needs either an actual detection, or a construction-looking frame
-    #      with substantial color-based coverage.
-    return bool(yolo_hits or world_hits) or (
-        frame_ok and any(m["cov"] >= 0.2 for m in real))
+    #      a real detection counts. a fallback only counts when the frame passed CLIP.
+    if not merged:
+        return False
+    for m in merged.values():
+        if not str(m["source"]).startswith("fallback"):
+            return True
+    return frame_ok
+
+
+def model_name():
+    # name the engines that actually ran, so the UI does not claim YOLO
+    # when the model failed to load (for example on a small host).
+    names = []
+    if world_model:
+        names.append("yolo-world")
+    if YOLO_AVAILABLE:
+        names.append("yolov8n")
+    names.append("visual")
+    if clip_model:
+        names.append("clip")
+    return " + ".join(names)
 
 
 def detect_materials(image_bytes):
@@ -401,87 +487,71 @@ def detect_materials(image_bytes):
     #
     # IN:  image_bytes - raw photo bytes
     # OUT: (detections, model_name, non_construction, is_construction_site)
-    # WHY: orchestrates the 7 steps in order: shrink, run passes, CLIP frame,
-    #      merge, add visual, drop household, fallback guess, build, normalize
+    # WHY: runs the steps in order: shrink, three passes, CLIP, merge,
+    #      add visual, drop household, fallback, build, normalize.
     _last_debug.clear()
 
     # Step 1: shrink once, reuse for all passes
     small = downscale_for_ai(image_bytes)
-    from PIL import Image as PILImage
-    image = PILImage.open(io.BytesIO(small)).convert("RGB")
+    image = Image.open(io.BytesIO(small)).convert("RGB")
 
     # Step 2: run all three passes on the same downscaled image
     yolo_hits, yolo_others = yolo_infer(image)
     world_hits, world_others = world_infer(image)
     visual_hits, condition, fabric_cov = visual_estimate(image)
 
-    # collect non-construction items
-    others = list(world_others)
-    for o in yolo_others:
-        if o["label"] not in {x["label"] for x in others}:
-            others.append(o)
-    if fabric_cov >= 0.3:
-        others.append({
-            "label": "fabric / textile",
-            "count": 1,
-            "confidence": round(min(0.6 + fabric_cov * 0.3, 0.88), 2),
-        })
+    # Step 3: CLIP frame check, then CLIP on weak boxes
+    # if CLIP is missing it returns 1.0, so the app fails open
+    frame_p = clip_check([image])[0]
+    frame_ok = frame_p > CLIP_GATE
+    yolo_hits, yolo_rejected = clip_filter_hits(image, yolo_hits)
+    world_hits, world_rejected = clip_filter_hits(image, world_hits)
 
-    # Step 3: CLIP frame check — does the whole photo look like construction?
-    frame_ok = True
-    frame_p = 1.0
-    try:
-        if clip_model is not None or clip_proc is not None:
-            p = clip_check([image])[0]
-            frame_p = p
-            frame_ok = p > CLIP_GATE
-    except Exception:
-        pass
+    # Step 4: collect non-construction items
+    others = collect_others(world_others, yolo_others, fabric_cov)
 
-    _last_debug["world_raw"] = [{"material": m, "conf": c, "boxes": n}
-                                for m, c, n in world_hits]
-    _last_debug["coco_raw"] = [{"material": m, "conf": c, "boxes": n}
-                               for m, c, n in yolo_hits]
-    _last_debug["clip_frame_p"] = round(frame_p, 3)
-    _last_debug["clip_gate"] = CLIP_GATE
-
-    # Step 4: merge hits from both model passes
+    # Step 5: merge both model passes
     merged = merge_hits(world_hits, yolo_hits)
 
-    # Step 5: add color-based hits
+    # Step 6: add color-based hits
     merged = add_visual_hits(merged, visual_hits, frame_ok, fabric_cov)
 
-    # Step 6: drop household visual hits if people/fabric dominate
-    merged, others, has_subject = drop_household_hits(merged, others, frame_ok, fabric_cov)
+    # Step 7: drop household visual hits if people/fabric dominate
+    merged, others, has_subject = drop_household_hits(merged, others)
 
-    # Step 7: fallback guess on empty construction-looking frames
+    # Step 8: fallback guess on empty construction-looking frames
     merged = fallback_guess(merged, frame_ok, fabric_cov, has_subject)
 
-    # Step 8: format detections for the UI
+    # Step 9: format detections for the UI
     dets = build_detections(merged, condition)
 
-    # Step 9: normalize shares to 100%
+    # Step 10: normalize shares to 100%
     dets = normalize_shares(dets)
 
-    # Step 10: decide if this is a construction site
-    real = [m for m in merged.values()
-            if not str(m["source"]).startswith("fallback")]
-    is_site = is_construction_site(yolo_hits, world_hits, frame_ok, real)
+    # Step 11: decide if this is a construction site
+    is_site = is_construction_site(merged, frame_ok)
 
-    _last_debug["rejected"] = [o for o in others if "rejected" in o["label"]]
+    rejected = yolo_rejected + world_rejected
+    _last_debug["world_raw"] = [{"material": m, "conf": round(c, 2),
+                                 "area": round(a, 3)} for m, c, a, _b in world_hits]
+    _last_debug["coco_raw"] = [{"material": m, "conf": round(c, 2),
+                                "area": round(a, 3)} for m, c, a, _b in yolo_hits]
+    _last_debug["clip_frame_p"] = round(frame_p, 3)
+    _last_debug["clip_gate"] = CLIP_GATE
+    _last_debug["clip_box_rejected"] = rejected
+    _last_debug["rejected"] = rejected
+    _last_debug["fabric_coverage"] = fabric_cov
     _last_debug["fallback_used"] = any(
         str(m.get("source", "")).startswith("fallback")
         for m in merged.values())
 
-    model = "yolo-world + yolov8n + visual"
-    return dets[:4], model, others, is_site
+    return dets[:4], model_name(), others, is_site
 
 
 def downscale_for_ai(raw, max_side=1280):
     # shrink phone photo before inference
     # original file is untouched, we only make a smaller copy for AI
     try:
-        from PIL import Image
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         if max(img.size) > max_side:
             img.thumbnail((max_side, max_side), Image.LANCZOS)

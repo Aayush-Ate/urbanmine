@@ -1,0 +1,14 @@
+# Keep secrets and local data out of the image.
+.env
+__pycache__/
+*.pyc
+*.log
+uploads/
+data.json
+
+# Model weights download on first request. Remove this line if you want to
+# bake them into the image (adds about 150MB).
+*.pt
+
+# Tests are not needed in production.
+tests/

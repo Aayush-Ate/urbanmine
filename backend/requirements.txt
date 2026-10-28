@@ -8,6 +8,5 @@ pillow>=10.0
 numpy>=1.24
 # CLIP zero-shot domain gate (bedsheet/fabric filter)
 transformers>=4.40
-# Optional: real Postgres + PostGIS. Uncomment to enable:
-# psycopg2-binary>=2.9
-# geoalchemy2>=0.14
+# Postgres store. Only used when DATABASE_URL is set; JSON works without it.
+psycopg[binary]>=3.2

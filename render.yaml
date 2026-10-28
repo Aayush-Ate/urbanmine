@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: urbanmine-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: standard
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
