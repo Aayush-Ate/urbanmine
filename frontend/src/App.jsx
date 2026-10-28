@@ -1,14 +1,16 @@
 // UrbanMine Frontend — simple, one file.
 // React + Vite. Five tabs, each does one thing.
-// No GSAP, no complex hooks, easy to read top to bottom.
+// GSAP motions on sidebar and tab switches, kept minimal.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { gsap } from 'gsap'
 import exifr from 'exifr'
 import LocationPicker from './LocationPicker.jsx'
 import { createViewer, flyTo, setPins } from './cesium.js'
 
-// API is the backend URL. Empty string means dev mode, Vite proxy sends /api to :8000
-const API = ''
+// API reads VITE_API_BASE at build time. Empty string means dev mode,
+// Vite proxy sends /api to :8000. Share builds bake the tunnel URL here.
+const API = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || ''
 // BLR is Bengaluru center coordinates, used as default location
 const BLR = { lat: 12.9716, lng: 77.5946 }
 
@@ -47,10 +49,37 @@ export default function App() {
     fetch(`${API}/api/health`).then(r => r.json()).then(j => setHealth(j)).catch(() => {})
   }, [])
 
+  // GSAP: sidebar animation on load, card feedback on tab switch.
+  // Skipped entirely under prefers-reduced-motion.
+  const pageRef = useRef(null)
+  const reduceMotion = () =>
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  useLayoutEffect(() => {
+    if (reduceMotion()) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo('.side-brand, .snav, .side-formula, .m-top, .mtab',
+        { x: -14, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.6, stagger: 0.05, ease: 'power3.out', clearProps: 'transform,opacity' })
+    }, pageRef)
+    return () => ctx.revert()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (reduceMotion()) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo('.tab-panel .bezel',
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.5, stagger: 0.06, ease: 'power3.out', clearProps: 'transform,opacity' })
+    }, pageRef)
+    return () => ctx.revert()
+  }, [tab])
+
   const active = TABS.find(t => t.id === tab) || TABS[0]
 
   return (
-    <div className="shell">
+    <div className="shell" ref={pageRef}>
       <a className="skip" href="#main">Skip to content</a>
 
       {/* Sidebar on desktop, shows tabs and match formula */}

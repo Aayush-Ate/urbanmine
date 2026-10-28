@@ -17,7 +17,8 @@ from catalog import MATERIAL_META
 from schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
 from scoring import haversine_km, match_score
 from store import UPLOAD_DIR, load_db, save_db, seed_if_empty
-from vision import detect_materials, downscale_for_ai
+from vision import (_last_debug, YOLO_AVAILABLE, detect_materials, downscale_for_ai,
+                    world_model)
 
 # this is the main app object
 # all routes are attached to this
@@ -41,9 +42,12 @@ seed_if_empty()
 @app.get("/api/health")
 def health():
     # this tells us if the server is alive and how many listings exist
+    # yolo and world flags show if the AI models are loaded
     db = load_db()
     return {
         "status": "ok",
+        "yolo": YOLO_AVAILABLE,
+        "world": bool(world_model),
         "listings": len(db["listings"]),
         "requests": len(db["requests"]),
     }
@@ -53,14 +57,17 @@ def health():
 async def analyze(file: UploadFile = File(...),
                   lat: float = Form(12.9716),
                   lng: float = Form(77.5946),
-                  address: str = Form("Bengaluru")):
+                  address: str = Form("Bengaluru"),
+                  debug: bool = Form(False)):
     # photo comes in here, we save it, run AI, return what materials we found
     raw = await file.read()
 
     # raw is the photo bytes
     # if it is bigger than 25MB we reject it because it is too large
     if len(raw) > 25 * 1024 * 1024:
-        return {"detections": [], "error": "Photo too large (25MB max)."}
+        return {"detections": [], "model": "rejected", "non_construction": [],
+                "is_construction_site": True,
+                "error": "Photo too large (25MB max)."}
 
     # PIL is Python Imaging Library
     # it opens images and checks if they are real images
@@ -70,7 +77,9 @@ async def analyze(file: UploadFile = File(...),
         from PIL import Image as _PIL
         _PIL.open(io.BytesIO(raw)).verify()
     except Exception:
-        return {"detections": [], "error": "Not a valid image. Use JPG or PNG."}
+        return {"detections": [], "model": "rejected", "non_construction": [],
+                "is_construction_site": True,
+                "error": "Not a valid image. Use JPG or PNG."}
 
     # save the original photo to the uploads folder
     # ext is the file extension like .jpg or .png
@@ -86,16 +95,23 @@ async def analyze(file: UploadFile = File(...),
 
     # this runs all the AI passes and returns what it found
     # dets is the list of materials found
+    # model is which AI model was used
     # others is things that are not construction (bedsheet, person, clothes)
     # is_site tells us if the photo looks like a construction site
-    dets, others, is_site = detect_materials(small)
+    dets, model, others, is_site = detect_materials(small)
 
-    return {
+    resp = {
         "image_url": f"/uploads/{fid}",
         "detections": dets,
+        "model": model,
         "non_construction": others,
         "is_construction_site": is_site,
     }
+
+    if debug:
+        resp["debug"] = _last_debug
+
+    return resp
 
 
 @app.post("/api/listings")
