@@ -53,9 +53,37 @@ function useIsMobile() {
   return mobile
 }
 
-// CropThumb cuts the detected box out of the uploaded photo.
-// The backend sends bbox as 0..1 values, so the crop matches the photo
-// at any screen size. No bbox means a color-only hit, so show the frame.
+// cropCanvas cuts a normalized box out of a loaded photo.
+// bbox is 0..1, so the same numbers work on the preview and the original.
+// The canvas keeps the box's own shape, so there are no gray bars and no
+// extra scenery around the object.
+function cropCanvas(img, bbox, maxSize, allowUpscale) {
+  const w = img.naturalWidth
+  const h = img.naturalHeight
+  const [nx1, ny1, nx2, ny2] = bbox || [0, 0, 1, 1]
+  // a hair of padding keeps the object from touching the frame edge
+  const padX = (nx2 - nx1) * 0.03
+  const padY = (ny2 - ny1) * 0.03
+  const x1 = Math.max(0, (nx1 - padX) * w)
+  const y1 = Math.max(0, (ny1 - padY) * h)
+  const x2 = Math.min(w, (nx2 + padX) * w)
+  const y2 = Math.min(h, (ny2 + padY) * h)
+  const sw = Math.max(1, x2 - x1)
+  const sh = Math.max(1, y2 - y1)
+  // shrink big boxes; small boxes get a little upscale so they stay visible
+  let scale = Math.min(1, maxSize / Math.max(sw, sh))
+  if (allowUpscale) scale = Math.max(scale, Math.min(3, 600 / Math.max(sw, sh)))
+  const cw = Math.max(1, Math.round(sw * scale))
+  const ch = Math.max(1, Math.round(sh * scale))
+  const c = document.createElement('canvas')
+  c.width = cw
+  c.height = ch
+  c.getContext('2d').drawImage(img, x1, y1, sw, sh, 0, 0, cw, ch)
+  return c
+}
+
+// CropThumb shows only the detected object, cut from the uploaded photo.
+// No bbox means a color-only hit, so the whole frame is the only evidence.
 function CropThumb({ src, bbox, alt, onOpen }) {
   const [url, setUrl] = useState('')
 
@@ -65,31 +93,10 @@ function CropThumb({ src, bbox, alt, onOpen }) {
     const img = new Image()
     img.onload = () => {
       if (!alive) return
-      const w = img.naturalWidth
-      const h = img.naturalHeight
-      const [nx1, ny1, nx2, ny2] = bbox || [0, 0, 1, 1]
-      const padX = (nx2 - nx1) * 0.12
-      const padY = (ny2 - ny1) * 0.12
-      const x1 = Math.max(0, (nx1 - padX) * w)
-      const y1 = Math.max(0, (ny1 - padY) * h)
-      const x2 = Math.min(w, (nx2 + padX) * w)
-      const y2 = Math.min(h, (ny2 + padY) * h)
-      const sw = Math.max(1, x2 - x1)
-      const sh = Math.max(1, y2 - y1)
-      const size = 200
-      // contain the whole box so the user sees everything the model saw.
-      // cover would cut the sides off wide boxes and hide the material.
-      const scale = Math.min(size / sw, size / sh)
-      const dw = sw * scale
-      const dh = sh * scale
-      const c = document.createElement('canvas')
-      c.width = size
-      c.height = size
-      const ctx = c.getContext('2d')
-      ctx.fillStyle = '#bdbdbd'
-      ctx.fillRect(0, 0, size, size)
-      ctx.drawImage(img, x1, y1, sw, sh, (size - dw) / 2, (size - dh) / 2, dw, dh)
-      setUrl(c.toDataURL('image/jpeg', 0.82))
+      try {
+        const c = cropCanvas(img, bbox, 480, true)
+        setUrl(c.toDataURL('image/jpeg', 0.86))
+      } catch { setUrl('') }
     }
     img.onerror = () => { if (alive) setUrl('') }
     img.src = src
@@ -97,40 +104,80 @@ function CropThumb({ src, bbox, alt, onOpen }) {
   }, [src, bbox])
 
   if (!url) return (
-    <button type="button" className="det-crop-btn" onClick={onOpen} aria-label={`${alt}. Open full photo`}>
+    <button type="button" className="det-crop-btn" onClick={onOpen} aria-label={`${alt}. Open object crop`}>
       <div className="det-crop det-crop-empty" aria-hidden="true" />
     </button>
   )
   return (
-    <button type="button" className="det-crop-btn" onClick={onOpen} aria-label={`${alt}. Open full photo`}>
+    <button type="button" className="det-crop-btn" onClick={onOpen} aria-label={`${alt}. Open object crop`}>
       <img className="det-crop" src={url} alt={alt} title={alt} />
     </button>
   )
 }
 
-// CropViewer shows the whole photo with the detected box outlined.
-// The thumbnail answers "what did it see"; this answers "where exactly".
-function CropViewer({ src, bbox, material, onClose }) {
+// CropViewer opens on the object itself, cut from the photo.
+// "Show in photo" switches to the whole frame with the box drawn, for context.
+function CropViewer({ src, bbox, material, pct, onClose }) {
+  // view is 'object' (tight crop) or 'photo' (full frame + box)
+  const [view, setView] = useState('object')
+  // objectUrl is the enlarged cutout of the detected box
+  const [objectUrl, setObjectUrl] = useState('')
+
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  useEffect(() => {
+    if (!src) { setObjectUrl(''); return }
+    let alive = true
+    const img = new Image()
+    img.onload = () => {
+      if (!alive) return
+      try {
+        const c = cropCanvas(img, bbox, 1400, true)
+        setObjectUrl(c.toDataURL('image/jpeg', 0.9))
+      } catch { setObjectUrl('') }
+    }
+    img.onerror = () => { if (alive) setObjectUrl('') }
+    img.src = src
+    return () => { alive = false }
+  }, [src, bbox])
+
   const [x1, y1, x2, y2] = bbox || [0, 0, 1, 1]
   return (
-    <div className="crop-modal" role="dialog" aria-modal="true" aria-label={`Detected ${material} area`} onClick={onClose}>
+    <div className="crop-modal" role="dialog" aria-modal="true" aria-label={`Detected ${material} object`} onClick={onClose}>
       <div className="crop-view" onClick={e => e.stopPropagation()}>
-        <div className="crop-frame">
-          <img src={src} alt={`Full photo with the ${material} detection highlighted`} />
-          <span className="crop-box" style={{
-            left: `${x1 * 100}%`, top: `${y1 * 100}%`,
-            width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
-          }} />
-        </div>
+        {view === 'object' ? (
+          <div className="crop-stage">
+            {objectUrl
+              ? <img className="crop-object" src={objectUrl} alt={`Cropped ${material} detected in the photo`} />
+              : <span className="crop-loading">Cutting the object…</span>}
+          </div>
+        ) : (
+          <div className="crop-frame">
+            <img src={src} alt={`Full photo with the ${material} detection highlighted`} />
+            {bbox && <span className="crop-box" style={{
+              left: `${x1 * 100}%`, top: `${y1 * 100}%`,
+              width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
+            }} />}
+          </div>
+        )}
         <div className="crop-view-bar">
-          <span>AI saw this area for <b>{material}</b></span>
-          <button type="button" className="crop-close" onClick={onClose}>Close</button>
+          <span>
+            {view === 'object'
+              ? <>Detected object · <b>{material}</b>{pct != null ? ` · ${pct}% match` : ''}</>
+              : <>AI saw this area for <b>{material}</b></>}
+          </span>
+          <span className="crop-actions">
+            {bbox && (
+              <button type="button" className="crop-toggle" onClick={() => setView(v => v === 'object' ? 'photo' : 'object')}>
+                {view === 'object' ? 'Show in photo' : 'Show object'}
+              </button>
+            )}
+            <button type="button" className="crop-close" onClick={onClose}>Close</button>
+          </span>
         </div>
       </div>
     </div>
@@ -490,7 +537,7 @@ function UploadPanel() {
           )}
           {dets.map((d, i) => (
             <div key={i} className="det">
-              <div className="det-top"><CropThumb src={preview} bbox={d.bbox} alt={`Detected ${d.material} crop`} onOpen={() => setZoom({ src: preview, bbox: d.bbox, material: d.material })} /><span className="mdot" style={{ background: MATERIAL_PAINT[d.material] || '#1f1f1f' }} /><b>{d.material}</b>
+              <div className="det-top"><CropThumb src={preview} bbox={d.bbox} alt={`Detected ${d.material} crop`} onOpen={() => setZoom({ src: preview, bbox: d.bbox, material: d.material, pct: d.share != null ? d.share : Math.round(d.confidence * 100) })} /><span className="mdot" style={{ background: MATERIAL_PAINT[d.material] || '#1f1f1f' }} /><b>{d.material}</b>
                 <span className="conf" title={d.source || ''}>{d.share != null ? d.share : Math.round(d.confidence * 100)}%</span></div>
               <div className="frow">
                 <label>Qty<input type="number" value={d.quantity} onChange={e => updateDet(i, 'quantity', e.target.value)} /></label>

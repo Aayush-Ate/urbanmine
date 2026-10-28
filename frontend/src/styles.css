@@ -87,8 +87,8 @@ input, select {
 .cta.sm { padding: 8px 6px 8px 14px; font-size: 13px; }
 .det { border-top: 1px solid var(--line); padding: 14px 0; display: grid; gap: 6px; animation: rise .7s var(--ease) both; }
 .det-top { display: flex; gap: 10px; align-items: center; }
-.det-crop { width: 80px; height: 80px; border-radius: 10px; object-fit: contain; border: 1px solid var(--line); background: #bdbdbd; flex: none; display: block; }
-.det-crop-empty { display: block; }
+.det-crop { max-width: 140px; max-height: 84px; width: auto; height: auto; border-radius: 8px; object-fit: contain; border: 1px solid var(--line); background: #1f1f1f; flex: none; display: block; }
+.det-crop-empty { width: 84px; height: 84px; display: block; }
 /* the crop is a button so a tap opens the full photo with the box drawn on it */
 .det-crop-btn { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 10px; flex: none; line-height: 0; }
 .det-crop-btn:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
@@ -183,8 +183,8 @@ input, select {
 .impact.paint-y { background: var(--yellow); color: #1f1f1f; }
 .impact[class*="paint-"] .muted { color: inherit; opacity: .75; }
 
-/* Crop viewer: full photo with the detected box outlined, so the user can
-   check where the AI actually looked before confirming a listing. */
+/* Crop viewer: opens on the detected object itself, cut from the photo.
+   "Show in photo" switches to the full frame with the box outlined. */
 .crop-modal {
   position: fixed; inset: 0; z-index: 100;
   background: rgba(15, 15, 15, .82);
@@ -192,6 +192,14 @@ input, select {
   animation: crop-fade .2s var(--ease) both;
 }
 .crop-view { display: grid; gap: 10px; max-width: min(1100px, 96vw); }
+.crop-stage {
+  display: grid; place-items: center; justify-self: center;
+  width: min(420px, 92vw); min-height: 220px;
+  padding: 12px;
+  background: #c6c6c6; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+}
+.crop-object { display: block; max-width: 100%; max-height: 62vh; width: auto; height: auto; border-radius: 6px; }
+.crop-loading { color: #d9d9d9; font-family: var(--font-mono); font-size: 13px; }
 .crop-frame {
   position: relative; display: inline-block; justify-self: center;
   background: #1f1f1f; border: 1px solid #6a6a6a; border-radius: 8px; overflow: hidden;
@@ -204,10 +212,16 @@ input, select {
   border-radius: 2px; pointer-events: none;
 }
 .crop-view-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap;
   background: #e6e6e6; border: 1px solid var(--line); border-radius: 10px;
   padding: 10px 12px; font-size: 14px;
 }
+.crop-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.crop-toggle {
+  border: 1px solid var(--line); background: #d9d9d9; color: var(--ink);
+  border-radius: 99px; padding: 7px 14px; font: inherit; font-weight: 700; cursor: pointer;
+}
+.crop-toggle:hover { background: #c6c6c6; }
 .crop-close {
   border: 1px solid var(--line); background: #1f1f1f; color: #e6e6e6;
   border-radius: 99px; padding: 7px 16px; font: inherit; font-weight: 700; cursor: pointer;
@@ -216,6 +230,7 @@ input, select {
 @keyframes crop-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 900px) {
   .crop-modal { padding: 10px; }
-  .crop-frame img { max-height: 68vh; }
+  .crop-stage { width: 92vw; height: auto; padding: 8px; }
+  .crop-frame img { max-height: 64vh; }
   .crop-view-bar { font-size: 13px; }
 }
