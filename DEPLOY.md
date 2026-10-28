@@ -3,19 +3,15 @@
 | Piece | Host | Cost |
 |---|---|---|
 | Frontend | Vercel | free |
-| Backend | Hugging Face Docker Space | needs HF PRO, $9/month |
+| Backend | Vercel Container Runtime | free on Hobby, Active CPU limits |
 | Database | Neon Postgres | free tier |
 | Photos | `/tmp/uploads` | ephemeral |
 
-The backend is the expensive part. It loads torch, ultralytics, transformers,
-and about 150MB of model weights. That does not fit in a free JavaScript
-serverless function.
-
-## Why Vercel cannot run the backend
-
-Vercel does run Python functions, but the Hobby plan caps the bundle at 250MB
-and the request at 10s. torch, ultralytics, transformers, and the weights pass
-both limits before the app starts. Vercel serves the React build only.
+The backend loads torch, ultralytics, transformers, and about 150MB of model
+weights. That does not fit in a normal JavaScript serverless function. Vercel
+now has a Container Runtime (beta, all plans) that runs the Dockerfile with
+2GB RAM and 300s per request on Hobby, so the same image that runs locally
+runs there.
 
 ## 1. Database
 
@@ -52,57 +48,63 @@ This is plain Postgres 17, not PostGIS. UrbanMine does distance math in
 `scoring.py` with haversine, so no spatial extension is needed. Enable PostGIS
 later only if you move radius filtering into SQL.
 
-## 2. Backend on Hugging Face Spaces
+## 2. Backend on Vercel containers
 
-Docker Spaces require a PRO account as of 2026. Check first:
+The backend folder has a `Dockerfile` and `vercel.json` with
+`"framework": "container"`. Vercel builds the image, pushes it to its
+container registry, and routes traffic to the port in `PORT`.
 
-```bash
-hf auth whoami
-```
-
-If that says not logged in:
+First time:
 
 ```bash
-hf auth login
+cd backend
+vercel link --yes
+vercel env add PORT production --value 7860 --no-sensitive
+# paste the Neon pooled URL when prompted
+vercel env add DATABASE_URL production --sensitive
+vercel deploy --prod --yes
 ```
 
-Then deploy from the repo root:
+After that, one command redeploys:
 
 ```bash
-./scripts/deploy-space.sh <your-hf-username>/urbanmine-backend
+cd backend
+vercel deploy --prod --yes
 ```
 
-The script creates a public Docker Space, sets `DATABASE_URL` as a Space
-secret from `backend/.env`, and uploads a clean copy. It excludes `.env`,
-model weights, uploads, `data.json`, tests, and logs. Those must never go to a
-public Space.
+The first build takes about 4 minutes. The Dockerfile downloads the YOLO
+weights and the CLIP model at build time, so cold starts do not fetch them.
+It also runs `set_classes()` once as a build check. YOLO-World imports the
+OpenAI `clip` package for that call, and `ultralytics` does not install it,
+so `clip-anytorch` is in `requirements.txt`. If that import breaks, the image
+build fails instead of quietly serving without YOLO-World.
 
-Manual version if you prefer the web UI:
-
-1. Create a Space, SDK Docker, public.
-2. Set the secret `DATABASE_URL` to the Neon pooled URL.
-3. Upload `backend/` without `.env`, `*.pt`, `uploads/`, and `data.json`.
-4. The Space uses `backend/README.md` for its card and port.
-
-Hugging Face routes traffic to `7860`. The Dockerfile reads `PORT` when it
-exists and falls back to `7860`, so the same image works on Render too.
-
-The Space URL looks like:
+The production alias looks like:
 
 ```
-https://huggingface.co/spaces/<user>/urbanmine-backend
-https://<user>-urbanmine-backend.hf.space
+https://backend-one-chi-21.vercel.app
 ```
 
-The second one is the API base the frontend needs. Check it:
+The deployment URL (`backend-<hash>-...vercel.app`) is protected by Vercel
+Authentication. Use the alias for public API calls.
+
+Check it:
 
 ```bash
-curl https://<user>-urbanmine-backend.hf.space/api/health
+curl https://backend-one-chi-21.vercel.app/api/health
+# {"status":"ok","yolo":true,"world":true,"store":"postgres","listings":6}
 ```
 
-The first analyze request downloads and loads the weights, so it can take a
-minute. On free CPU hardware the Space sleeps when idle and wakes on the next
-request. The database stays awake independently.
+`yolo` and `world` describe the instance that answered. Vercel can scale to
+zero and start a fresh container for the next request, so a health check on a
+cold instance can show `false` even though the previous analyze used both
+models. The `model` field on an analyze response is the reliable answer for
+that request.
+
+Vercel Hobby caps the request body at 4.5MB. The frontend already shrinks
+photos to 1600px JPEG before upload, which stays well under that. A very
+large or unusual file can still get a 413; resize it or raise the limit on a
+paid plan.
 
 ## 3. Frontend on Vercel
 
@@ -110,47 +112,48 @@ This is React + Vite, not Next.js. The variable is `VITE_API_BASE`, not
 `NEXT_PUBLIC_API_URL`. The analyze call is already wired in `App.jsx` as
 `POST /api/analyze` with multipart `file`.
 
+Vite bakes the value into the build, so set it and build in one step:
+
 ```bash
 cd frontend
-vercel --prod --build-env VITE_API_BASE=https://<user>-urbanmine-backend.hf.space
+vercel link --yes
+vercel deploy --prod --yes -b VITE_API_BASE=https://backend-one-chi-21.vercel.app
 ```
 
-Or set it once and redeploy:
+To change it later, redeploy with the new `-b` value. Setting the env var in
+the dashboard alone does nothing until a new build runs.
 
-```bash
-vercel env add VITE_API_BASE production
-# paste the Space URL
-vercel --prod
-```
-
-Vite bakes the value into the build, so changing the env var needs a rebuild.
-The backend allows all origins, so the Vercel domain can call the Space
-directly.
+The backend allows all origins, so the Vercel domain can call it directly.
 
 ## 4. Check the live app
 
 ```bash
-curl https://<user>-urbanmine-backend.hf.space/api/health
-# {"status":"ok","yolo":true,"world":true,"store":"postgres",...}
+curl https://backend-one-chi-21.vercel.app/api/health
 ```
 
-Open the Vercel URL and upload a photo. If `yolo` or `world` is false, check
-the Space logs. The usual cause is memory or a missing model download. The
-visual pass still runs, and the analyze response's `model` field says what
-actually ran.
+Open the frontend URL and upload a photo. A real demolition photo should
+return detections and a listing draft. A bedsheet, person, or food photo
+should come back with `is_construction_site: false` and no listings. Add
+`?debug=1` to the analyze request to see the raw boxes and the CLIP scores.
+
+The first analyze request on a cold container loads the weights and can take
+30-60s. Later requests on the same warm instance are much faster.
 
 ## 5. Photos
 
 `UPLOAD_DIR` defaults to `backend/uploads`. The Dockerfile sets it to
-`/tmp/uploads` because Space, Render, and Fly disks are ephemeral. Old
-`image_url` values can 404 after a restart. For files that must survive, upload
-to S3, Cloudflare R2, or Neon Object Storage and store the public URL. That is
-a `store.py` change, not a UI change.
+`/tmp/uploads` because Vercel, Spaces, Render, and Fly disks are ephemeral.
+Old `image_url` values can 404 after a restart. For files that must survive,
+upload to S3, Cloudflare R2, or Neon Object Storage and store the public URL.
+That is a `store.py` change, not a UI change.
 
-## 6. If you do not have HF PRO
+## 6. Other hosts
 
-Docker Spaces are no longer free for personal accounts. The options that do
-not charge monthly:
+Hugging Face Docker Spaces now require PRO ($9/month). `backend/README.md` is
+still a valid Space card and `scripts/deploy-space.sh` still uploads a clean
+copy, but do not plan around a free Space.
+
+The options that do not charge monthly:
 
 - Oracle Cloud Always Free: an ARM VM with enough RAM to run the Dockerfile.
   Truly free if your account has the allowance, but you manage the VM, TLS,
@@ -159,10 +162,8 @@ not charge monthly:
   serverless. Cold starts are slower because the weights load on first use.
 - Local machine plus a Cloudflare tunnel: free, but the laptop must stay awake
   and the tunnel dies when it closes.
-- Render free web service: 512MB, which is likely too small for YOLO-World and
-  CLIP. The Starter plan with 2GB is about $7/month.
-
-Do not plan around a free Hugging Face Docker Space. That changed.
+- Render free web service: 512MB, which is too small for YOLO-World and CLIP.
+  The Starter plan with 2GB is about $7/month.
 
 ## 7. Local JSON mode
 

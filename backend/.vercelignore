@@ -1,0 +1,9 @@
+.env
+.env.local
+uploads/
+data.json
+__pycache__/
+*.pyc
+*.log
+tests/
+*.pt

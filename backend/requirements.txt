@@ -8,5 +8,8 @@ pillow>=10.0
 numpy>=1.24
 # CLIP zero-shot domain gate (bedsheet/fabric filter)
 transformers>=4.40
+# YOLO-World calls set_classes(), which imports OpenAI CLIP.
+# ultralytics does not pull this in, so without it world_model stays False.
+clip-anytorch>=2.6
 # Postgres store. Only used when DATABASE_URL is set; JSON works without it.
 psycopg[binary]>=3.2

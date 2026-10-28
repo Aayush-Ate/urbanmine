@@ -3,6 +3,7 @@ node_modules/
 frontend/dist/
 __pycache__/
 *.pyc
+.vercel/
 
 # AI weights (auto-download on first backend run)
 *.pt

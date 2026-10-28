@@ -1,7 +1,11 @@
 .env
+.env.local
+.vercel/
 *.pt
 __pycache__/
 *.pyc
 uploads/
 data.json
 *.log
+.vercel
+.env*
