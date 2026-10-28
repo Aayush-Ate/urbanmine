@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from catalog import MATERIAL_META
 from schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
 from scoring import haversine_km, match_score
-from store import DATABASE_URL, UPLOAD_DIR, load_db, save_db, seed_if_empty
+from store import DATABASE_URL, UPLOAD_DIR, load_db, save_db
 from vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
 
 # this is the main app object
@@ -32,13 +32,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# on first run this puts 6 starter listings into data.json
-# so the marketplace is not empty when you open it
-# if a database is down, the app still starts and the error shows in the log
-try:
-    seed_if_empty()
-except Exception as e:
-    print("Seed skipped:", e)
+# the marketplace starts empty. only real listings created by users are saved.
+# if the database is down, the app still starts and the error shows in the log
 
 
 @app.get("/")
@@ -147,7 +142,8 @@ def create_listing(payload: ListingConfirm):
         "confidence": payload.confidence,
         "status": "active",
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "image_url": None,
+        "image_url": payload.image_url,
+        "bbox": payload.bbox,
     }
 
     # insert at the front so newest listings show first
@@ -282,22 +278,32 @@ def patch_request(rid: str, p: RequestPatch):
 
 @app.get("/api/impact")
 def impact():
-    # dashboard stats: tonnes diverted, value recovered, matches
+    # real totals from saved listings and requests. no demo padding.
     db = load_db()
-    listings = db["listings"]
-    total_value = sum(l["quantity"] * l["price_per_unit"] for l in listings)
+    listings = [l for l in db["listings"] if l.get("status", "active") == "active"]
+    requests = db["requests"]
 
-    # tonnes = quantity * CO2 factor / 1000
-    tonnes = sum(l["quantity"] * MATERIAL_META.get(l["material"], {}).get("co2_per_unit_kg", 1)
-                 for l in listings) / 1000
+    # asking value of what is listed, not money already received
+    total_value = sum(float(l.get("quantity", 0)) * float(l.get("price_per_unit", 0))
+                      for l in listings)
+
+    # rough CO2e estimate: quantity * material factor / 1000
+    # unknown materials count as 0 instead of inventing a number
+    co2e = sum(float(l.get("quantity", 0))
+               * MATERIAL_META.get(l.get("material"), {}).get("co2_per_unit_kg", 0)
+               for l in listings) / 1000
+
+    accepted = len([r for r in requests if r.get("status") == "accepted"])
+    value_fmt = (f"₹{total_value / 100000:.1f} lakh"
+                 if total_value >= 100000 else f"₹{total_value:,.0f}")
 
     return {
-        "tonnes_diverted": round(tonnes, 2),
-        "value_recovered_inr": round(total_value),
-        "value_recovered_fmt": f"₹{total_value / 100000:.1f} lakh",
-        "buyer_matches": len(db["requests"]) + 43,
-        "active_listings": len([l for l in listings if l.get("status") == "active"]),
-        "total_requests": len(db["requests"]),
+        "co2e_tonnes": round(co2e, 2),
+        "value_listed_inr": round(total_value),
+        "value_listed_fmt": value_fmt,
+        "buyer_matches": accepted,
+        "active_listings": len(listings),
+        "total_requests": len(requests),
     }
 
 

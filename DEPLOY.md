@@ -113,17 +113,24 @@ This is React + Vite, not Next.js. The variable is `VITE_API_BASE`, not
 `POST /api/analyze` with multipart `file`.
 
 The frontend is the only public URL. `frontend/vercel.json` rewrites
-`/api/*` to the backend alias, so the browser calls the same origin and CORS
-never enters the picture:
+`/api/*` and `/uploads/*` to the backend alias, so the browser calls the same
+origin and CORS never enters the picture:
 
 ```json
 "rewrites": [
   {
     "source": "/api/(.*)",
     "destination": "https://backend-one-chi-21.vercel.app/api/$1"
+  },
+  {
+    "source": "/uploads/(.*)",
+    "destination": "https://backend-one-chi-21.vercel.app/uploads/$1"
   }
 ]
 ```
+
+Listings save the uploaded photo URL and the detected box, so buyers see the
+same object crop on the Marketplace card.
 
 Build without `VITE_API_BASE`. It defaults to an empty string, which makes
 every fetch relative:

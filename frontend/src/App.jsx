@@ -99,6 +99,8 @@ function CropThumb({ src, bbox, alt, onOpen }) {
       } catch { setUrl('') }
     }
     img.onerror = () => { if (alive) setUrl('') }
+    // canvas needs this when the photo is served from another origin
+    img.crossOrigin = 'anonymous'
     img.src = src
     return () => { alive = false }
   }, [src, bbox])
@@ -141,6 +143,8 @@ function CropViewer({ src, bbox, material, pct, onClose }) {
       } catch { setObjectUrl('') }
     }
     img.onerror = () => { if (alive) setObjectUrl('') }
+    // canvas needs this when the photo is served from another origin
+    img.crossOrigin = 'anonymous'
     img.src = src
     return () => { alive = false }
   }, [src, bbox])
@@ -296,7 +300,7 @@ export default function App() {
                 <b>{v}%</b></div>
             ))}
           </div>
-          <div className="mono small side-tech">PostGIS · YOLOv8n · FastAPI · Cesium</div>
+          <div className="mono small side-tech">Postgres · YOLOv8 · FastAPI · Cesium</div>
         </div>
         <div className="side-status">
           <span className={health ? 'dot ok' : 'dot bad'} />
@@ -329,7 +333,7 @@ export default function App() {
         </main>
 
         <footer className="foot mono">
-          UrbanMine MVP · React + FastAPI + YOLO + Cesium · localhost:5173 ↔ :8000
+          UrbanMine MVP · React + FastAPI + YOLO + Cesium
         </footer>
       </div>
     </div>
@@ -356,8 +360,10 @@ function UploadPanel() {
   const [loading, setLoading] = useState(false)
   // model is which AI model was used
   const [model, setModel] = useState('')
+  // imageUrl is the saved photo URL the backend returns for this upload
+  const [imageUrl, setImageUrl] = useState('')
   // form has lat, lng, address, contractor
-  const [form, setForm] = useState({ lat: BLR.lat, lng: BLR.lng, address: 'Koramangala, Bengaluru', contractor: 'Sharma Demolition Co.' })
+  const [form, setForm] = useState({ lat: BLR.lat, lng: BLR.lng, address: 'Koramangala, Bengaluru', contractor: '' })
   // locSource says where location came from (photo EXIF, map, GPS, preset)
   const [locSource, setLocSource] = useState('')
   // saved is listings already published
@@ -418,6 +424,7 @@ function UploadPanel() {
       else {
         setDets(j.detections || [])
         setModel(j.model || '')
+        setImageUrl(j.image_url || '')
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
       }
@@ -429,7 +436,7 @@ function UploadPanel() {
   const onFile = async (f) => {
     if (!f) return
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f) })
-    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel('')
+    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setImageUrl('')
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     try {
@@ -470,10 +477,13 @@ function UploadPanel() {
       lat: Number(form.lat), lng: Number(form.lng),
       address: form.address, contractor: form.contractor,
       title: `${d.material} — ${d.quantity} ${d.unit}`,
-      description: `AI-detected (${Math.round(d.confidence * 100)}% confidence), contractor-verified.`,
+      description: `Detected by AI from a site photo (${Math.round(d.confidence * 100)}% match). Condition is the seller's estimate.`,
       confidence: d.confidence,
+      image_url: imageUrl || null,
+      bbox: d.bbox || null,
     }
     const r = await fetch(`${API}/api/listings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (!r.ok) { setError('Could not save that listing. Please try again.'); return }
     const j = await r.json()
     setSaved(s => [...s, j])
   }
@@ -510,7 +520,7 @@ function UploadPanel() {
           <LocationPicker lat={form.lat} lng={form.lng} address={form.address} source={locSource} onChange={setLoc} />
           <div className="frow">
             <label>Address (auto-filled, editable)<input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></label>
-            <label>Contractor<input value={form.contractor} onChange={e => setForm({ ...form, contractor: e.target.value })} /></label>
+            <label>Contractor<input value={form.contractor} placeholder="Your company" onChange={e => setForm({ ...form, contractor: e.target.value })} /></label>
           </div>
           <button className="cta" onClick={reanalyse} disabled={loading || !file}>{loading ? 'AI thinking…' : 'Re-analyse photo'}<span className="cta-ic">↗</span></button>
           {error && <div className="err" role="alert">{error}</div>}
@@ -612,13 +622,22 @@ function MarketPanel() {
   useEffect(() => { if (mapObj.current) flyTo(mapObj.current, f.lat, f.lng, 60000) }, [f.lat, f.lng])
 
   // reqForm has buyer name, type, message
-  const [reqForm, setReqForm] = useState({ buyer_name: 'Architect A', buyer_type: 'Architect', message: '' })
+  const [reqForm, setReqForm] = useState({ buyer_name: '', buyer_type: 'Architect', message: '' })
   const [notice, setNotice] = useState('')
+  const [reqError, setReqError] = useState('')
+  // zoom holds the listing photo that is open
+  const [zoom, setZoom] = useState(null)
   const request = async (l) => {
-    await fetch(`${API}/api/requests`, {
+    if (!reqForm.buyer_name.trim()) {
+      setReqError('Add your name before requesting this material.')
+      return
+    }
+    setReqError('')
+    const r = await fetch(`${API}/api/requests`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity }),
     })
+    if (!r.ok) { setReqError('Could not save that request. Please try again.'); return }
     setNotice(`Requested: ${l.title}. The contractor sees it under Requests.`)
   }
 
@@ -639,11 +658,12 @@ function MarketPanel() {
           <button className="cta sm" onClick={load}>Search<span className="cta-ic">⌕</span></button>
         </div>
         <div className="frow">
-          <label>Buyer name<input value={reqForm.buyer_name} onChange={e => setReqForm({ ...reqForm, buyer_name: e.target.value })} /></label>
+          <label>Buyer name<input value={reqForm.buyer_name} placeholder="Your name" onChange={e => setReqForm({ ...reqForm, buyer_name: e.target.value })} /></label>
           <label>Type<select value={reqForm.buyer_type} onChange={e => setReqForm({ ...reqForm, buyer_type: e.target.value })}>
             {['Architect', 'Builder', 'Interior Designer', 'Artist', 'Contractor'].map(t => <option key={t}>{t}</option>)}
           </select></label>
         </div>
+        {reqError && <div className="err" role="alert">{reqError}</div>}
         {notice && <div className="ok-box" role="status">{notice}</div>}
       </div></div>
 
@@ -651,10 +671,27 @@ function MarketPanel() {
         <div className="cards">
           {items.map(l => (
             <div key={l.id} className="card bezel"><div className="card-in">
+              {l.image_url && (
+                <div className="l-photo">
+                  <CropThumb
+                    src={`${API}${l.image_url}`}
+                    bbox={l.bbox}
+                    alt={`${l.material} listing photo`}
+                    onOpen={() => setZoom({
+                      src: `${API}${l.image_url}`, bbox: l.bbox, material: l.material,
+                      pct: l.confidence != null ? Math.round(l.confidence * 100) : null,
+                    })}
+                  />
+                </div>
+              )}
               <div className="l-top"><span className="mdot" style={{ background: MATERIAL_PAINT[l.material] || '#1f1f1f' }} /><b>{l.title}</b><span className="tag">{l.condition}</span></div>
               <div className="muted">{l.description}</div>
               <div className="l-meta mono">{l.quantity} {l.unit} · ₹{l.price_per_unit}/{l.unit} · total {fmtINR(l.quantity * l.price_per_unit)}{l.distance_km != null ? ` · ${l.distance_km} km` : ''}</div>
-              <div className="muted small">{l.address} · {l.contractor} · AI {Math.round((l.confidence || 1) * 100)}%</div>
+              <div className="muted small">
+                {l.address}
+                {l.contractor ? ` · ${l.contractor}` : ''}
+                {l.confidence != null ? ` · AI ${Math.round(l.confidence * 100)}%` : ''}
+              </div>
               <button className="cta ghost sm" onClick={() => request(l)}>Request material<span className="cta-ic">→</span></button>
             </div></div>
           ))}
@@ -667,6 +704,7 @@ function MarketPanel() {
           <div className="mono small">Cesium globe · satellite view keyless · click a pin for details.</div>
         </div></div>
       </div>
+      {zoom && <CropViewer {...zoom} onClose={() => setZoom(null)} />}
     </div>
   )
 }
@@ -769,9 +807,9 @@ function ImpactPanel() {
   useEffect(() => { fetch(`${API}/api/impact`).then(r => r.json()).then(setD) }, [])
   if (!d) return <div className="empty">Loading impact…</div>
   const cards = [
-    ['Material diverted', `${d.tonnes_diverted} tonnes`, 'vs landfill', 'paint-g'],
-    ['Value recovered', d.value_recovered_fmt, `${d.active_listings} active listings`, 'paint-y'],
-    ['Buyer matches', d.buyer_matches, `${d.total_requests} direct requests`, 'paint-p'],
+    ['CO₂e avoided (est.)', `${d.co2e_tonnes} t`, 'rough material-factor estimate', 'paint-g'],
+    ['Value listed', d.value_listed_fmt, `${d.active_listings} active listings`, 'paint-y'],
+    ['Accepted requests', d.buyer_matches, `${d.total_requests} total requests`, 'paint-p'],
     ['Active listings', d.active_listings, 'live now', 'paint-r'],
   ]
   return (
@@ -783,9 +821,10 @@ function ImpactPanel() {
           </div></div>
         ))}
       </div>
+      {d.active_listings === 0 && <div className="empty">No listings yet. Publish one from Upload + AI and it will appear here.</div>}
       <div className="card bezel"><div className="card-in">
-        <h2>How it's computed (MVP)</h2>
-        <p className="muted">Tonnes ≈ Σ qty × material CO₂ factor / 1000 · Value = Σ qty × price · Matches = seed 43 + live requests.</p>
+        <h2>How it's computed</h2>
+        <p className="muted">CO₂e ≈ Σ quantity × material factor / 1000. The factors are rough, not a verified audit. Value is the asking price of active listings, not money received. Requests are real buyer requests saved in Postgres.</p>
       </div></div>
     </div>
   )

@@ -17,10 +17,12 @@ class ListingConfirm(BaseModel):
     lat: float = 12.9716
     lng: float = 77.5946
     address: str = "Bengaluru"
-    contractor: str = "Demo Contractor"
+    contractor: str = ""
     title: Optional[str] = None
     description: str = ""
-    confidence: float = 1.0
+    confidence: Optional[float] = None
+    image_url: Optional[str] = None
+    bbox: Optional[list[float]] = None
 
 
 class ListingPatch(BaseModel):

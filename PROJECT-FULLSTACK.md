@@ -67,7 +67,7 @@ urbanmine/
     main.py                         798 lines  Routes, vision pipeline, scoring, store
     requirements.txt                 13 lines  fastapi, uvicorn, multipart, pydantic,
                                                ultralytics, pillow, numpy, transformers
-    data.json                       auto       JSON store (seeded Bengaluru listings)
+    data.json                       auto       JSON store (empty until a user publishes)
     uploads/                        auto       Analyzed photos, served at /uploads
   frontend/
     index.html                       16 lines   Cesium 1.119 CDN + font links
@@ -104,8 +104,8 @@ cap, format gate, always JSON) · `POST /api/listings` · `GET /api/listings`
 (material, condition, q, lat/lng/max_distance_km, nearest-first) ·
 `GET/PATCH /api/listings/{id}` · `POST /api/match` (top 20 by score) ·
 `POST /api/requests` · `GET /api/requests` · `PATCH /api/requests/{id}`
-(accepted/declined/pending) · `GET /api/impact` (tonnes = qty × CO₂ / 1000,
-value formatted lakh/Cr, matches = 43 seed + live) · `GET /api/materials`
+(accepted/declined/pending) · `GET /api/impact` (CO₂e = qty × factor / 1000,
+asking value, accepted requests) · `GET /api/materials`
 (all 16, drives the dropdowns) · static `/uploads` · docs at `/docs`.
 
 Detection pipeline per photo: downscale to 1280px (original stored untouched) →

@@ -25,17 +25,9 @@ class TestStore(unittest.TestCase):
         store.save_db(db)
         self.assertEqual(store.load_db(), db)
 
-    def test_seed_creates_six_active_listings(self):
-        db = store.seed_if_empty()
-        self.assertEqual(len(db["listings"]), 6)
-        self.assertTrue(all(l["status"] == "active" for l in db["listings"]))
-
-    def test_seed_does_not_overwrite(self):
-        store.seed_if_empty()
-        db = store.load_db()
-        db["listings"].append({"id": "mine"})
-        store.save_db(db)
-        self.assertEqual(len(store.seed_if_empty()["listings"]), 7)
+    def test_empty_db_stays_empty(self):
+        # no starter listings: the marketplace only shows what users add
+        self.assertEqual(store.load_db()["listings"], [])
 
 
 if __name__ == "__main__":

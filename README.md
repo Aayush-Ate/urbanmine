@@ -55,7 +55,7 @@ Match score: material 40, quantity 25, distance 20 (zero past 50 km), condition 
 |------|---------|-----------|
 | `catalog.py` | What is a material, what is it worth | `MATERIAL_META` (16 mats, unit/price/CO2/icon), `WORLD_PROMPTS` (~60 descriptive phrases), `WORLD_IGNORE` (walls/ceilings to discard), `WORLD_NONCON` (people/pets/clothes, never listed), `COCO_TO_MATERIAL`, `FULL_QTY`, `CLIP_GATE` 0.60 |
 | `vision.py` | What is in this photo | `yolo_infer` ( everyday objects → Wood/Metal), `world_infer` (prompts → 16 mats), `visual_estimate` (pixel colors, no net), `clip_check` (construction-or-household per crop), `detect_materials` (merges all four, shares to 100%), `downscale_for_ai` |
-| `store.py` | Where listings live | `load_db`, `save_db`, `seed_if_empty` (6 Bengaluru listings first run) |
+| `store.py` | Where listings live | `load_db`, `save_db` (empty by default; only real user listings are saved) |
 | `scoring.py` | How good a match, how much there is | `haversine_km` (same math as PostGIS), `qty_for` (coverage × base, never random), `match_score` |
 | `schemas.py` | What JSON is valid | `ListingConfirm`, `ListingPatch`, `MatchRequest`, `BuyerRequest`, `RequestPatch` |
 
@@ -84,7 +84,7 @@ Base `http://localhost:8000`. 404s are `{"detail": "..."}`.
 | `GET / PATCH /api/listings/{id}` | patch: quantity?, condition?, price?, status? | one listing |
 | `POST /api/match` | material, quantity=100, lat, lng, condition?, max_distance_km=50 | top 20 with `match_score`, `distance_km` |
 | `POST /api/requests`, `GET /api/requests`, `PATCH /api/requests/{id}` | listing_id, buyer_name, … / status | pending → accepted/declined |
-| `GET /api/impact` | — | tonnes (qty×CO2/1000), value (lakh/Cr), matches (43 seed + live) |
+| `GET /api/impact` | — | CO₂e (qty×factor/1000), asking value, accepted requests |
 | `GET /api/materials` | — | 16 materials, drives the dropdowns |
 | `GET /uploads/{file}` | — | stored photo |
 
