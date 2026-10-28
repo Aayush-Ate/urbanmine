@@ -41,6 +41,12 @@ except Exception as e:
     print("Seed skipped:", e)
 
 
+@app.get("/")
+def root():
+    # a small landing response, so the Space URL is not a bare 404
+    return {"name": "UrbanMine API", "docs": "/docs", "health": "/api/health"}
+
+
 @app.get("/api/health")
 def health():
     # this tells us if the server is alive and how many listings exist

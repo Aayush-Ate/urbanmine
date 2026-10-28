@@ -16,8 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Uploads are ephemeral on Render and Fly. Override this if you mount a disk.
+# Uploads are ephemeral on Spaces, Render, and Fly. Use object storage for real use.
 ENV UPLOAD_DIR=/tmp/uploads
-EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Hugging Face Spaces routes to 7860. Render sets PORT (10000 by default).
+EXPOSE 7860
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]
