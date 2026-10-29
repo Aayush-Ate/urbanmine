@@ -13,7 +13,7 @@ import os
 from PIL import Image
 
 from catalog import (
-    CLIP_GATE, CLIP_LABELS, COCO_TO_MATERIAL, MATERIAL_META,
+    CLIP_GATE, CLIP_LABELS, COCO_TO_MATERIAL, CONDITION_PRICE, MATERIAL_META,
     WORLD_CLASSES, WORLD_CONF, WORLD_IGNORE, WORLD_NONCON, WORLD_PROMPTS,
 )
 from scoring import qty_for
@@ -371,7 +371,8 @@ def build_detections(merged, condition, size=None):
             "unit": meta["unit"],
             "condition": condition,
             "confidence": m["conf"],
-            "suggested_price_per_unit": meta["price"],
+            # guessed condition, so guessed price: Poor pays 40% of the base
+            "suggested_price_per_unit": round(meta["price"] * CONDITION_PRICE.get(condition, 0.85)),
             "source": m["source"],
         })
     return dets

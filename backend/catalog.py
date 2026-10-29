@@ -5,24 +5,34 @@ and match follow, because they all read MATERIAL_META.
 """
 # 16 sellable materials. unit = how buyers buy it, price = ₹/unit default,
 # icon = the dot colour used by the frontend.
+#
+# These are RESALE values for used material in Bengaluru, not new-shop MRP.
+# A salvaged brick is not a new brick. Scrap metal follows the Indian scrap
+# market (steel ≈ ₹35/kg, copper ≈ ₹750/kg, aluminium ≈ ₹180/kg); the rest are
+# what a salvage yard pays for a good-condition lot.
 MATERIAL_META = {
-    "Wood": {"unit": "sq ft", "price": 150, "icon": "🪵"},
-    "Bricks": {"unit": "pcs", "price": 12, "icon": "🧱"},
-    "Metal": {"unit": "kg", "price": 85, "icon": "🔩"},
-    "Doors": {"unit": "pcs", "price": 2500, "icon": "🚪"},
-    "Windows": {"unit": "pcs", "price": 3200, "icon": "🪟"},
-    "Concrete": {"unit": "cu ft", "price": 95, "icon": "🏗️"},
-    "Plywood": {"unit": "sq ft", "price": 90, "icon": "🪚"},
-    "Rebar": {"unit": "kg", "price": 65, "icon": "🔗"},
-    "Copper": {"unit": "kg", "price": 650, "icon": "🪙"},
+    "Wood": {"unit": "sq ft", "price": 70, "icon": "🪵"},
+    "Bricks": {"unit": "pcs", "price": 6, "icon": "🧱"},
+    "Metal": {"unit": "kg", "price": 35, "icon": "🔩"},
+    "Doors": {"unit": "pcs", "price": 1500, "icon": "🚪"},
+    "Windows": {"unit": "pcs", "price": 1800, "icon": "🪟"},
+    "Concrete": {"unit": "cu ft", "price": 15, "icon": "🏗️"},
+    "Plywood": {"unit": "sq ft", "price": 30, "icon": "🪚"},
+    "Rebar": {"unit": "kg", "price": 34, "icon": "🔗"},
+    "Copper": {"unit": "kg", "price": 750, "icon": "🪙"},
     "Aluminium": {"unit": "kg", "price": 180, "icon": "⚙️"},
-    "PVC Pipes": {"unit": "m", "price": 120, "icon": "🚰"},
-    "Tiles": {"unit": "sq ft", "price": 60, "icon": "🏺"},
-    "Marble": {"unit": "sq ft", "price": 220, "icon": "💎"},
-    "Glass": {"unit": "sq ft", "price": 120, "icon": "🪞"},
-    "Gypsum": {"unit": "pcs", "price": 350, "icon": "⬜"},
-    "Sand": {"unit": "cu ft", "price": 60, "icon": "⏳"},
+    "PVC Pipes": {"unit": "m", "price": 60, "icon": "🚰"},
+    "Tiles": {"unit": "sq ft", "price": 25, "icon": "🏺"},
+    "Marble": {"unit": "sq ft", "price": 100, "icon": "💎"},
+    "Glass": {"unit": "sq ft", "price": 45, "icon": "🪞"},
+    "Gypsum": {"unit": "pcs", "price": 120, "icon": "⬜"},
+    "Sand": {"unit": "cu ft", "price": 50, "icon": "⏳"},
 }
+
+# A photo cannot tell a sound plank from a rotten one, so the condition is a
+# guess and the price has to admit it: a Poor pile is worth a fraction of a
+# Good one. Keys match CONDITION_SCORES below.
+CONDITION_PRICE = {"Excellent": 1.0, "Good": 0.85, "Fair": 0.65, "Poor": 0.4}
 
 # Phrase given to the model (key) and the material it counts as (value).
 # Specific beats generic: bare "door" fires on any rectangle, while

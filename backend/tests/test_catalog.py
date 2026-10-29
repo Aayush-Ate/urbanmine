@@ -22,6 +22,12 @@ class TestCatalog(unittest.TestCase):
             self.assertGreater(meta["price"], 0, mat)
             self.assertTrue(meta["unit"], mat)
 
+    def test_condition_price_covers_every_condition(self):
+        self.assertEqual(set(catalog.CONDITION_PRICE), set(catalog.CONDITION_SCORES))
+        for name, mult in catalog.CONDITION_PRICE.items():
+            self.assertGreater(mult, 0, name)
+            self.assertLessEqual(mult, 1, name)
+
     def test_coco_map_values_are_known_materials(self):
         for cls, mat in catalog.COCO_TO_MATERIAL.items():
             self.assertIn(mat, catalog.MATERIAL_META, f"COCO {cls!r}")

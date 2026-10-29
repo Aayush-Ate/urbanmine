@@ -42,6 +42,17 @@ class TestDetectionShape(unittest.TestCase):
         self.assertIsNone(dets[0]["bbox"])
 
 
+class TestSuggestedPrice(unittest.TestCase):
+    def test_price_follows_the_guessed_condition(self):
+        # Plywood base is ₹30/sq ft: Good pays 85%, Poor pays 40%
+        merged = {"Plywood": {"conf": 0.6, "cov": 0.5, "source": "yolo-world"}}
+        good = vision.build_detections(merged, "Good")[0]["suggested_price_per_unit"]
+        poor = vision.build_detections(merged, "Poor")[0]["suggested_price_per_unit"]
+        self.assertEqual(good, 26)
+        self.assertEqual(poor, 12)
+        self.assertLess(poor, good)
+
+
 class TestShares(unittest.TestCase):
     def test_shares_add_to_one_hundred(self):
         dets = [{"confidence": 0.6}, {"confidence": 0.3}, {"confidence": 0.1}]
