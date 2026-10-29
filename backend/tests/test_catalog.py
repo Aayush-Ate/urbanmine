@@ -17,10 +17,9 @@ class TestCatalog(unittest.TestCase):
     def test_every_material_has_quantity_base(self):
         self.assertEqual(set(catalog.FULL_QTY), set(catalog.MATERIAL_META))
 
-    def test_prices_and_co2_positive(self):
+    def test_prices_positive(self):
         for mat, meta in catalog.MATERIAL_META.items():
             self.assertGreater(meta["price"], 0, mat)
-            self.assertGreater(meta["co2_per_unit_kg"], 0, mat)
             self.assertTrue(meta["unit"], mat)
 
     def test_coco_map_values_are_known_materials(self):

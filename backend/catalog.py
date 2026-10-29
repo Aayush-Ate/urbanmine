@@ -1,27 +1,27 @@
 """Prices, units, prompts, and gates for all 16 materials.
 
 Every number the app shows comes from here. Change a price and listings,
-match, and impact all follow, because they all read MATERIAL_META.
+and match follow, because they all read MATERIAL_META.
 """
 # 16 sellable materials. unit = how buyers buy it, price = ₹/unit default,
-# co2_per_unit_kg = rough tonnes-diverted factor, icon = frontend dot.
+# icon = the dot colour used by the frontend.
 MATERIAL_META = {
-    "Wood": {"unit": "sq ft", "price": 150, "co2_per_unit_kg": 2.1, "icon": "🪵"},
-    "Bricks": {"unit": "pcs", "price": 12, "co2_per_unit_kg": 0.5, "icon": "🧱"},
-    "Metal": {"unit": "kg", "price": 85, "co2_per_unit_kg": 1.8, "icon": "🔩"},
-    "Doors": {"unit": "pcs", "price": 2500, "co2_per_unit_kg": 25.0, "icon": "🚪"},
-    "Windows": {"unit": "pcs", "price": 3200, "co2_per_unit_kg": 18.0, "icon": "🪟"},
-    "Concrete": {"unit": "cu ft", "price": 95, "co2_per_unit_kg": 3.5, "icon": "🏗️"},
-    "Plywood": {"unit": "sq ft", "price": 90, "co2_per_unit_kg": 1.5, "icon": "🪚"},
-    "Rebar": {"unit": "kg", "price": 65, "co2_per_unit_kg": 1.6, "icon": "🔗"},
-    "Copper": {"unit": "kg", "price": 650, "co2_per_unit_kg": 2.5, "icon": "🪙"},
-    "Aluminium": {"unit": "kg", "price": 180, "co2_per_unit_kg": 6.5, "icon": "⚙️"},
-    "PVC Pipes": {"unit": "m", "price": 120, "co2_per_unit_kg": 1.2, "icon": "🚰"},
-    "Tiles": {"unit": "sq ft", "price": 60, "co2_per_unit_kg": 0.8, "icon": "🏺"},
-    "Marble": {"unit": "sq ft", "price": 220, "co2_per_unit_kg": 1.1, "icon": "💎"},
-    "Glass": {"unit": "sq ft", "price": 120, "co2_per_unit_kg": 0.9, "icon": "🪞"},
-    "Gypsum": {"unit": "pcs", "price": 350, "co2_per_unit_kg": 2.0, "icon": "⬜"},
-    "Sand": {"unit": "cu ft", "price": 60, "co2_per_unit_kg": 0.1, "icon": "⏳"},
+    "Wood": {"unit": "sq ft", "price": 150, "icon": "🪵"},
+    "Bricks": {"unit": "pcs", "price": 12, "icon": "🧱"},
+    "Metal": {"unit": "kg", "price": 85, "icon": "🔩"},
+    "Doors": {"unit": "pcs", "price": 2500, "icon": "🚪"},
+    "Windows": {"unit": "pcs", "price": 3200, "icon": "🪟"},
+    "Concrete": {"unit": "cu ft", "price": 95, "icon": "🏗️"},
+    "Plywood": {"unit": "sq ft", "price": 90, "icon": "🪚"},
+    "Rebar": {"unit": "kg", "price": 65, "icon": "🔗"},
+    "Copper": {"unit": "kg", "price": 650, "icon": "🪙"},
+    "Aluminium": {"unit": "kg", "price": 180, "icon": "⚙️"},
+    "PVC Pipes": {"unit": "m", "price": 120, "icon": "🚰"},
+    "Tiles": {"unit": "sq ft", "price": 60, "icon": "🏺"},
+    "Marble": {"unit": "sq ft", "price": 220, "icon": "💎"},
+    "Glass": {"unit": "sq ft", "price": 120, "icon": "🪞"},
+    "Gypsum": {"unit": "pcs", "price": 350, "icon": "⬜"},
+    "Sand": {"unit": "cu ft", "price": 60, "icon": "⏳"},
 }
 
 # Phrase given to the model (key) and the material it counts as (value).
@@ -116,10 +116,11 @@ FULL_QTY = {
 MATERIALS = ["Wood", "Bricks", "Metal", "Doors", "Windows", "Concrete"]
 CONDITION_SCORES = {"Excellent": 1.0, "Good": 0.8, "Fair": 0.55, "Poor": 0.3}
 
-# The two labels for the CLIP check: construction or household. Each weak
-# box is scored against both; below 0.60 construction it is rejected.
+# CLIP compares two labels. A photo or crop is kept only when the first
+# label (construction) scores at least 0.60. The second label includes small
+# desk objects so a pen does not get read as scrap metal.
 CLIP_LABELS = [
     "a photo of construction material, demolition debris, or salvaged building parts like doors, tiles, or pipes",
-    "a photo of clothes, bedsheet, fabric, a person, a pet, or food",
+    "a photo of clothes, bedsheet, fabric, a person, a pet, food, or a small household object like a pen, phone, or cup",
 ]
 CLIP_GATE = 0.60

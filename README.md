@@ -42,7 +42,7 @@ curl -s http://localhost:8000/api/health && curl -s -o /dev/null -w "frontend: %
 ```
 photo → Upload tab → POST /api/analyze → edit → POST /api/listings
 buyer → Marketplace (GET /api/listings) / Smart Match (POST /api/match)
-      → POST /api/requests → contractor accepts → Impact (GET /api/impact)
+      → POST /api/requests → contractor accepts
 ```
 
 Match score: material 40, quantity 25, distance 20 (zero past 50 km), condition 15.
@@ -84,7 +84,6 @@ Base `http://localhost:8000`. 404s are `{"detail": "..."}`.
 | `GET / PATCH /api/listings/{id}` | patch: quantity?, condition?, price?, status? | one listing |
 | `POST /api/match` | material, quantity=100, lat, lng, condition?, max_distance_km=50 | top 20 with `match_score`, `distance_km` |
 | `POST /api/requests`, `GET /api/requests`, `PATCH /api/requests/{id}` | listing_id, buyer_name, … / status | pending → accepted/declined |
-| `GET /api/impact` | — | CO₂e (qty×factor/1000), asking value, accepted requests |
 | `GET /api/materials` | — | 16 materials, drives the dropdowns |
 | `GET /uploads/{file}` | — | stored photo |
 

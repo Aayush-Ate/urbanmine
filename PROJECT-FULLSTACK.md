@@ -12,7 +12,7 @@ plus docs. No dead demo links live here. Section 8 covers why localhost comes fi
 
 Demolition contractors photograph a site → AI identifies salvageable materials
 with quantities → one click publishes marketplace listings → buyers search and
-match by material, quantity, condition, and distance → requests → impact totals.
+match by material, quantity, condition, and distance → requests.
 
 | Layer | Choice | Why it matters to you |
 |-------|--------|-----------------------|
@@ -104,8 +104,7 @@ cap, format gate, always JSON) · `POST /api/listings` · `GET /api/listings`
 (material, condition, q, lat/lng/max_distance_km, nearest-first) ·
 `GET/PATCH /api/listings/{id}` · `POST /api/match` (top 20 by score) ·
 `POST /api/requests` · `GET /api/requests` · `PATCH /api/requests/{id}`
-(accepted/declined/pending) · `GET /api/impact` (CO₂e = qty × factor / 1000,
-asking value, accepted requests) · `GET /api/materials`
+(accepted/declined/pending) · `GET /api/materials`
 (all 16, drives the dropdowns) · static `/uploads` · docs at `/docs`.
 
 Detection pipeline per photo: downscale to 1280px (original stored untouched) →
@@ -139,7 +138,7 @@ labelled globes, no `alert()` popups.
 ## 6. Data flows
 
 Upload → listing: photo → EXIF GPS (or picker) → shrink → analyze → edit →
-confirm → live in Marketplace + match + impact. Match: buyer need (material,
+confirm → live in Marketplace + match. Match: buyer need (material,
 qty, point, condition, radius) → scored rows with `distance_km`. Request:
 buyer identity + listing → pending → contractor accepts/declines. Share build:
 tunnel backend → build with `VITE_API_BASE` → publish `dist/` → link.

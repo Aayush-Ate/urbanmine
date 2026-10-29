@@ -119,8 +119,6 @@ input, select {
   width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; font-weight: 800;
   background: conic-gradient(var(--amber) var(--s), #c9c9c9 0); position: relative;
 }
-.impact-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
-.impact b { font-size: 38px; font-family: var(--font-display); font-weight: 600; display: block; line-height: 1; }
 .foot { text-align: center; padding: 18px; color: var(--ink2); font-size: 12px; }
 @media (max-width: 900px) {
   .grid2 { grid-template-columns: 1fr; }
@@ -137,7 +135,6 @@ input, select {
 .m-top .dot { margin-left: auto; }
 .m-page { padding: 14px 12px 12px; }
 .m-page .filters { grid-template-columns: 1fr; }
-.m-page .impact-grid { grid-template-columns: 1fr; }
 .m-page .loc-row { grid-template-columns: 1fr; }
 .m-page .map { height: 300px; }
 .m-page .cta { width: 100%; justify-content: center; }
@@ -181,11 +178,6 @@ input, select {
 .list-preview b { font-size: 16px; }
 /* The1 identity: material wayfinding dots + full-bleed paint blocks */
 .mdot { width: 10px; height: 10px; border-radius: 50%; background: #1f1f1f; border: 1px solid #1f1f1f; display: inline-block; margin-right: 8px; flex: none; align-self: center; }
-.impact.paint-g { background: var(--green); color: #d9d9d9; }
-.impact.paint-p { background: var(--pink); color: #1f1f1f; }
-.impact.paint-r { background: var(--red); color: #d9d9d9; }
-.impact.paint-y { background: var(--yellow); color: #1f1f1f; }
-.impact[class*="paint-"] .muted { color: inherit; opacity: .75; }
 
 /* Crop viewer: opens on the detected object itself, cut from the photo.
    "Show in photo" switches to the full frame with the box outlined. */

@@ -53,33 +53,46 @@ class TestShares(unittest.TestCase):
 
 
 class TestHouseholdRules(unittest.TestCase):
-    def test_person_drops_visual_only_hit(self):
-        merged = {"Concrete": {"conf": 0.6, "cov": 0.4, "source": "visual estimate"}}
-        others = [{"label": "person", "confidence": 0.9}]
-        kept, others, has_subject = vision.drop_household_hits(merged, others)
+    def test_household_frame_drops_bed_as_wood(self):
+        # clip says this aint a site, yolov8n sees a bed and calls it wood
+        merged = {"Wood": {"conf": 0.8, "cov": 0.4, "source": "yolov8n"}}
+        kept, others = vision.drop_household_hits(merged, [], False)
         self.assertEqual(kept, {})
-        self.assertTrue(has_subject)
-        self.assertTrue(any("background" in o["label"] for o in others))
+        self.assertTrue(any("household item" in o["label"] for o in others))
 
-    def test_model_hit_survives_a_person(self):
+    def test_person_on_a_site_keeps_the_wood(self):
+        # worker next to a wood pile is still a wood pile
         merged = {"Wood": {"conf": 0.8, "cov": 0.4, "source": "yolov8n"}}
         others = [{"label": "person", "confidence": 0.9}]
-        kept, _others, _has_subject = vision.drop_household_hits(merged, others)
+        kept, _others = vision.drop_household_hits(merged, others, True)
         self.assertIn("Wood", kept)
 
-    def test_fallback_only_on_clean_construction_frame(self):
-        self.assertEqual(vision.fallback_guess({}, True, 0.0, False)["Concrete"]["conf"], 0.30)
-        self.assertEqual(vision.fallback_guess({}, False, 0.0, False), {})
-        self.assertEqual(vision.fallback_guess({}, True, 0.9, False), {})
-        self.assertEqual(vision.fallback_guess({}, True, 0.0, True), {})
+    def test_bedsheet_drops_furniture_hit(self):
+        # bedsheet in frame = bedroom photo. dont list the bed as wood.
+        merged = {"Wood": {"conf": 0.8, "cov": 0.4, "source": "yolov8n + visual"}}
+        others = [{"label": "bedsheet", "confidence": 0.7}]
+        kept, _others = vision.drop_household_hits(merged, others, True)
+        self.assertEqual(kept, {})
+
+    def test_world_material_survives_a_household_frame(self):
+        # yolo-world found a real material, keep it
+        merged = {"Wood": {"conf": 0.8, "cov": 0.4, "source": "yolo-world"}}
+        kept, _others = vision.drop_household_hits(merged, [], False)
+        self.assertIn("Wood", kept)
+
+    def test_clean_site_keeps_everything(self):
+        merged = {
+            "Wood": {"conf": 0.8, "cov": 0.4, "source": "yolov8n"},
+            "Concrete": {"conf": 0.5, "cov": 0.3, "source": "yolo-world + visual"},
+        }
+        kept, others = vision.drop_household_hits(merged, [], True)
+        self.assertEqual(set(kept), {"Wood", "Concrete"})
+        self.assertEqual(others, [])
 
     def test_site_verdict(self):
         real = {"Wood": {"conf": 0.8, "cov": 0.3, "source": "yolov8n"}}
-        fallback = {"Concrete": {"conf": 0.3, "cov": 0.1, "source": "fallback (low-confidence guess)"}}
-        self.assertTrue(vision.is_construction_site(real, False))
-        self.assertTrue(vision.is_construction_site(fallback, True))
-        self.assertFalse(vision.is_construction_site(fallback, False))
-        self.assertFalse(vision.is_construction_site({}, True))
+        self.assertTrue(vision.is_construction_site(real))
+        self.assertFalse(vision.is_construction_site({}))
 
 
 class TestClipBoxes(unittest.TestCase):
@@ -92,17 +105,28 @@ class TestClipBoxes(unittest.TestCase):
             ("Wood", 0.90, 0.20, (0, 0, 50, 50)),
             ("Concrete", 0.20, 0.30, (10, 10, 60, 60)),
         ]
-        with mock.patch("vision.clip_check", return_value=[0.20]):
-            kept, rejected = vision.clip_filter_hits(red_image(), hits)
+        with mock.patch("vision.clip_check", return_value=[0.90, 0.20]):
+            kept, rejected, checked = vision.clip_filter_hits(red_image(), hits)
         self.assertEqual([h[0] for h in kept], ["Wood"])
         self.assertEqual(rejected[0]["material"], "Concrete")
+        self.assertEqual(checked, 2)
+
+    def test_confident_box_is_also_checked(self):
+        # model can be confident and wrong. a pen at 0.80 still aint metal.
+        hits = [("Metal", 0.80, 0.31, (10, 10, 60, 60))]
+        with mock.patch("vision.clip_check", return_value=[0.05]):
+            kept, rejected, checked = vision.clip_filter_hits(red_image(), hits)
+        self.assertEqual(kept, [])
+        self.assertEqual(rejected[0]["material"], "Metal")
+        self.assertEqual(checked, 1)
 
     def test_weak_box_above_gate_is_kept(self):
         hits = [("Concrete", 0.20, 0.30, (10, 10, 60, 60))]
         with mock.patch("vision.clip_check", return_value=[0.80]):
-            kept, rejected = vision.clip_filter_hits(red_image(), hits)
+            kept, rejected, checked = vision.clip_filter_hits(red_image(), hits)
         self.assertEqual([h[0] for h in kept], ["Concrete"])
         self.assertEqual(rejected, [])
+        self.assertEqual(checked, 1)
 
 
 if __name__ == "__main__":

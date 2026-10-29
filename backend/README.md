@@ -42,7 +42,7 @@ falls back to `7860`, so the same image also works on Render.
 - `POST /api/analyze` takes multipart `file`, `lat`, `lng`, `address`, and an
   optional `debug`.
 - `GET /api/listings`, `POST /api/listings`, `POST /api/match`,
-  `GET /api/requests`, `GET /api/impact`, `GET /api/materials`.
+  `GET /api/requests`, `GET /api/materials`.
 
 The frontend talks to this API through `VITE_API_BASE`. CORS is open, so the
 Vercel build can call the Space directly.

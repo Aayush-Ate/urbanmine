@@ -22,13 +22,12 @@ const MATERIAL_PAINT = {
   Glass: '#7dd3e0', Gypsum: '#e8e2d0', Sand: '#d4a017',
 }
 
-// TABS defines the 5 tabs: Upload, Marketplace, Smart Match, Requests, Impact
+// TABS defines the 4 tabs: Upload, Marketplace, Smart Match, Requests
 const TABS = [
   { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos. AI reads location and materials.' },
   { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials nearby.' },
   { id: 'match', label: 'Smart Match', short: 'Match', title: 'Smart matching', sub: 'Ranked by material 40 · quantity 25 · distance 20 · condition 15.' },
   { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests', sub: 'Accept or decline incoming material requests.' },
-  { id: 'impact', label: 'Impact', short: 'Impact', title: 'Impact dashboard', sub: 'Tonnes diverted, value recovered, matches.' },
 ]
 
 // fmtINR converts a number to Indian rupees format like ₹1.5 lakh or ₹2 Cr
@@ -251,7 +250,6 @@ export default function App() {
             {tab === 'market' && <MarketPanel />}
             {tab === 'match' && <MatchPanel />}
             {tab === 'requests' && <RequestsPanel />}
-            {tab === 'impact' && <ImpactPanel />}
           </div>
         </main>
 
@@ -328,7 +326,6 @@ export default function App() {
             {tab === 'market' && <MarketPanel />}
             {tab === 'match' && <MatchPanel />}
             {tab === 'requests' && <RequestsPanel />}
-            {tab === 'impact' && <ImpactPanel />}
           </div>
         </main>
 
@@ -360,6 +357,8 @@ function UploadPanel() {
   const [loading, setLoading] = useState(false)
   // model is which AI model was used
   const [model, setModel] = useState('')
+  // verification is the checked / rejected / kept counter from the backend
+  const [verification, setVerification] = useState(null)
   // imageUrl is the saved photo URL the backend returns for this upload
   const [imageUrl, setImageUrl] = useState('')
   // form has lat, lng, address, contractor
@@ -424,6 +423,7 @@ function UploadPanel() {
       else {
         setDets(j.detections || [])
         setModel(j.model || '')
+        setVerification(j.verification || null)
         setImageUrl(j.image_url || '')
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
@@ -436,7 +436,7 @@ function UploadPanel() {
   const onFile = async (f) => {
     if (!f) return
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f) })
-    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setImageUrl('')
+    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl('')
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     try {
@@ -525,6 +525,13 @@ function UploadPanel() {
           <button className="cta" onClick={reanalyse} disabled={loading || !file}>{loading ? 'AI thinking…' : 'Re-analyse photo'}<span className="cta-ic">↗</span></button>
           {error && <div className="err" role="alert">{error}</div>}
           {model && <div className="mono small">model: {model}</div>}
+          {verification && (
+            <div className="mono small">
+              {verification.checked > 0
+                ? `AI checked ${verification.checked} object${verification.checked === 1 ? '' : 's'} · ${verification.rejected} rejected · ${verification.kept} listed`
+                : 'AI found no objects to check.'}
+            </div>
+          )}
           {saved.length > 0 && <div className="ok-box">✓ {saved.length} listing(s) published. See Marketplace.</div>}
         </div>
       </div>
@@ -798,34 +805,4 @@ function RequestsPanel() {
   )
 }
 
-// ============================================================
-// 5 · Impact panel
-// ============================================================
-function ImpactPanel() {
-  // d is impact data from backend
-  const [d, setD] = useState(null)
-  useEffect(() => { fetch(`${API}/api/impact`).then(r => r.json()).then(setD) }, [])
-  if (!d) return <div className="empty">Loading impact…</div>
-  const cards = [
-    ['CO₂e avoided (est.)', `${d.co2e_tonnes} t`, 'rough material-factor estimate', 'paint-g'],
-    ['Value listed', d.value_listed_fmt, `${d.active_listings} active listings`, 'paint-y'],
-    ['Accepted requests', d.buyer_matches, `${d.total_requests} total requests`, 'paint-p'],
-    ['Active listings', d.active_listings, 'live now', 'paint-r'],
-  ]
-  return (
-    <div>
-      <div className="impact-grid">
-        {cards.map(([k, v, s, p]) => (
-          <div key={k} className="card bezel"><div className={`card-in impact ${p}`}>
-            <span className="muted">{k}</span><b>{v}</b><span className="mono small">{s}</span>
-          </div></div>
-        ))}
-      </div>
-      {d.active_listings === 0 && <div className="empty">No listings yet. Publish one from Upload + AI and it will appear here.</div>}
-      <div className="card bezel"><div className="card-in">
-        <h2>How it's computed</h2>
-        <p className="muted">CO₂e ≈ Σ quantity × material factor / 1000. The factors are rough, not a verified audit. Value is the asking price of active listings, not money received. Requests are real buyer requests saved in Postgres.</p>
-      </div></div>
-    </div>
-  )
-}
+

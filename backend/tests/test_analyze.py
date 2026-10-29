@@ -32,9 +32,10 @@ class TestAnalyze(unittest.TestCase):
     @mock.patch("main.YOLO_AVAILABLE", False)
     @mock.patch("main.world_model", None)
     @mock.patch("main.detect_materials")
-    def test_analyze_returns_4_values(self, mock_detect):
-        """detect_materials must return 4 values: dets, model, others, is_site."""
-        mock_detect.return_value = ([], "visual", [], False)
+    def test_analyze_returns_5_values(self, mock_detect):
+        """detect_materials must return 5 values: dets, model, others, is_site, verification."""
+        mock_detect.return_value = ([], "visual", [], False,
+                                    {"checked": 0, "rejected": 0, "kept": 0})
         r = self._post_photo()
         self.assertEqual(r.status_code, 200)
         j = r.json()
@@ -43,13 +44,15 @@ class TestAnalyze(unittest.TestCase):
         self.assertIn("detections", j)
         self.assertIn("non_construction", j)
         self.assertIn("is_construction_site", j)
+        self.assertEqual(j["verification"]["checked"], 0)
 
     @mock.patch("main.YOLO_AVAILABLE", False)
     @mock.patch("main.world_model", None)
     @mock.patch("main.detect_materials")
     def test_analyze_debug_includes_last_debug(self, mock_detect):
         """?debug=1 should include the _last_debug dict in the response."""
-        mock_detect.return_value = ([], "visual", [], False)
+        mock_detect.return_value = ([], "visual", [], False,
+                                    {"checked": 0, "rejected": 0, "kept": 0})
         import main
         main._last_debug = {"world_raw": [], "coco_raw": [], "clip_frame_p": 0.9}
         r = self._post_photo(debug=True)

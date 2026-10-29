@@ -72,6 +72,7 @@ async def analyze(file: UploadFile = File(...),
     if len(raw) > 25 * 1024 * 1024:
         return {"detections": [], "model": "rejected", "non_construction": [],
                 "is_construction_site": True,
+                "verification": {"checked": 0, "rejected": 0, "kept": 0},
                 "error": "Photo too large (25MB max)."}
 
     # PIL is Python Imaging Library
@@ -84,6 +85,7 @@ async def analyze(file: UploadFile = File(...),
     except Exception:
         return {"detections": [], "model": "rejected", "non_construction": [],
                 "is_construction_site": True,
+                "verification": {"checked": 0, "rejected": 0, "kept": 0},
                 "error": "Not a valid image. Use JPG or PNG."}
 
     # save the original photo to the uploads folder
@@ -100,7 +102,8 @@ async def analyze(file: UploadFile = File(...),
     # model is which AI engines actually ran
     # others is things that are not construction (bedsheet, person, clothes)
     # is_site tells us if the photo looks like a construction site
-    dets, model, others, is_site = detect_materials(raw)
+    # verification is the "checked / rejected / kept" counter for the UI
+    dets, model, others, is_site, verification = detect_materials(raw)
 
     resp = {
         "image_url": f"/uploads/{fid}",
@@ -108,6 +111,7 @@ async def analyze(file: UploadFile = File(...),
         "model": model,
         "non_construction": others,
         "is_construction_site": is_site,
+        "verification": verification,
     }
 
     if debug:
@@ -274,37 +278,6 @@ def patch_request(rid: str, p: RequestPatch):
             save_db(db)
             return r
     raise HTTPException(status_code=404, detail="request not found")
-
-
-@app.get("/api/impact")
-def impact():
-    # real totals from saved listings and requests. no demo padding.
-    db = load_db()
-    listings = [l for l in db["listings"] if l.get("status", "active") == "active"]
-    requests = db["requests"]
-
-    # asking value of what is listed, not money already received
-    total_value = sum(float(l.get("quantity", 0)) * float(l.get("price_per_unit", 0))
-                      for l in listings)
-
-    # rough CO2e estimate: quantity * material factor / 1000
-    # unknown materials count as 0 instead of inventing a number
-    co2e = sum(float(l.get("quantity", 0))
-               * MATERIAL_META.get(l.get("material"), {}).get("co2_per_unit_kg", 0)
-               for l in listings) / 1000
-
-    accepted = len([r for r in requests if r.get("status") == "accepted"])
-    value_fmt = (f"₹{total_value / 100000:.1f} lakh"
-                 if total_value >= 100000 else f"₹{total_value:,.0f}")
-
-    return {
-        "co2e_tonnes": round(co2e, 2),
-        "value_listed_inr": round(total_value),
-        "value_listed_fmt": value_fmt,
-        "buyer_matches": accepted,
-        "active_listings": len(listings),
-        "total_requests": len(requests),
-    }
 
 
 @app.get("/api/materials")
