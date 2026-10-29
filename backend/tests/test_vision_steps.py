@@ -35,6 +35,7 @@ class TestDetectionShape(unittest.TestCase):
         dets = vision.build_detections(merged, "Good", (200, 400))
         self.assertEqual(dets[0]["bbox"], [0.05, 0.05, 0.55, 0.55])
         self.assertNotIn("icon", dets[0])
+        self.assertEqual(dets[0]["mode"], "area")
 
     def test_visual_hit_without_a_box_has_no_bbox(self):
         merged = {"Concrete": {"conf": 0.4, "cov": 0.3, "source": "visual estimate"}}

@@ -167,6 +167,8 @@ def create_listing(payload: ListingConfirm):
         "image_url": payload.image_url,
         "thumb_url": payload.thumb_url,
         "bbox": payload.bbox,
+        "dimensions": payload.dimensions,
+        "dimensions_label": payload.dimensions_label,
     }
 
     # insert at the front so newest listings show first

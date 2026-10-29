@@ -6,6 +6,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { gsap } from 'gsap'
 import exifr from 'exifr'
 import LocationPicker from './LocationPicker.jsx'
+import MeasureModal from './Measure.jsx'
+import { describeDims, fromMm, measuredQuantity, toMm } from './measure.js'
 import { createViewer, flyTo, setPins } from './cesium.js'
 import wipNote from './assets/work-in-progress.png'
 
@@ -373,6 +375,77 @@ function WipPanel({ title, blurb }) {
   )
 }
 
+// SizeBlock is how a detection becomes a measured lot. The photo ruler sets
+// length and width; what a camera cannot see (a pile's height, a sack's weight,
+// a count of doors) is typed here. Inputs are uncontrolled and keyed by value,
+// so typing never fights the re-render.
+function SizeBlock({ d, unit, onUnit, onChange, onMeasure }) {
+  const mode = d.mode || 'area'
+  const dims = d.dims || {}
+  const qty = measuredQuantity(mode, dims)
+  const showUnit = mode === 'area' || mode === 'volume' || mode === 'length'
+  const summary = describeDims(mode, dims)
+
+  const num = (key, label, value, step) => (
+    <label>{label} ({unit})
+      <input
+        key={`${key}-${unit}-${value}`}
+        type="number" min="0" step={step || '0.1'} inputMode="decimal"
+        defaultValue={value}
+        onBlur={e => onChange({ ...dims, [`${key}_mm`]: toMm(e.target.value, unit) })}
+        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+      />
+    </label>
+  )
+
+  return (
+    <div className="measure">
+      <div className="measure-head">
+        <span className="mono small">SIZE</span>
+        <span className={summary ? 'measure-sum ok' : 'measure-sum'}>{summary || 'not measured'}</span>
+        {showUnit && (
+          <div className="unit-toggle" role="group" aria-label="Dimension units">
+            <button type="button" className={unit === 'ft' ? 'on' : ''} aria-pressed={unit === 'ft'} onClick={() => onUnit('ft')}>ft</button>
+            <button type="button" className={unit === 'm' ? 'on' : ''} aria-pressed={unit === 'm'} onClick={() => onUnit('m')}>m</button>
+          </div>
+        )}
+      </div>
+
+      {mode === 'weight' && (
+        <label className="measure-one">Weight (kg)
+          <input type="number" min="0" step="0.5" inputMode="decimal" defaultValue={dims.kg || ''}
+            onBlur={e => onChange({ ...dims, kg: Number(e.target.value) || 0 })}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+        </label>
+      )}
+
+      {mode === 'pieces' && (
+        <label className="measure-one">Pieces
+          <input type="number" min="0" step="1" inputMode="numeric" defaultValue={dims.pieces || ''}
+            onBlur={e => onChange({ ...dims, pieces: Number(e.target.value) || 0 })}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+        </label>
+      )}
+
+      {showUnit && (
+        <>
+          <div className="measure-row">
+            {num('length', 'Length', fromMm(dims.length_mm, unit))}
+            {mode !== 'length' && num('width', 'Width', fromMm(dims.width_mm, unit))}
+            {mode === 'volume' && num('height', 'Height', fromMm(dims.height_mm, unit))}
+          </div>
+          <div className="measure-actions">
+            <button type="button" className="cta ghost sm" onClick={onMeasure}>📏 Measure on photo</button>
+            {qty != null
+              ? <span className="mono small measure-qty">= {qty} {d.unit}</span>
+              : <span className="mono small muted">AI guessed {d.quantity} {d.unit} from the photo</span>}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ============================================================
 // 1 · Upload + AI panel
 // ============================================================
@@ -383,6 +456,12 @@ function UploadPanel() {
   const [preview, setPreview] = useState(null)
   // zoom holds the detection whose full photo is open
   const [zoom, setZoom] = useState(null)
+  // measuring is the detection whose ruler is open
+  const [measuring, setMeasuring] = useState(null)
+  // calib is the photo's scale, kept so every detection uses one calibration
+  const [calib, setCalib] = useState(null)
+  // dimUnit is how manual dimensions are typed
+  const [dimUnit, setDimUnit] = useState('ft')
   // dets is the list of materials AI found
   const [dets, setDets] = useState([])
   // others is things that are NOT construction (bedsheet, person, clothes)
@@ -479,7 +558,7 @@ function UploadPanel() {
   const onFile = async (f) => {
     if (!f) return
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f) })
-    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl(''); setThumbUrl('')
+    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl(''); setThumbUrl(''); setCalib(null)
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     let hasGps = false
@@ -533,6 +612,15 @@ function UploadPanel() {
   // change one field of one detection (qty, unit, condition, price)
   const updateDet = (i, k, v) => setDets(d => d.map((x, j) => j === i ? { ...x, [k]: v } : x))
 
+  // a measured size replaces the coverage guess for that one material
+  const applyDims = (i, dims) => {
+    setDets(ds => ds.map((d, j) => {
+      if (j !== i) return d
+      const q = measuredQuantity(d.mode || 'area', dims)
+      return { ...d, dims, ...(q != null ? { quantity: q } : {}) }
+    }))
+  }
+
   // send confirmed detection to backend to create listing
   const confirm = async (d) => {
     const body = {
@@ -547,6 +635,8 @@ function UploadPanel() {
       image_url: imageUrl || null,
       thumb_url: thumbUrl || null,
       bbox: d.bbox || null,
+      dimensions: d.dims || null,
+      dimensions_label: describeDims(d.mode || 'area', d.dims) || null,
     }
     const r = await fetch(`${API}/api/listings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     if (!r.ok) { setError('Could not save that listing. Please try again.'); return }
@@ -632,9 +722,19 @@ function UploadPanel() {
                 </select></label>
                 <label>₹ / {d.unit}<input type="number" value={d.suggested_price_per_unit} onChange={e => updateDet(i, 'suggested_price_per_unit', e.target.value)} /></label>
               </div>
+              <SizeBlock
+                d={d}
+                unit={dimUnit}
+                onUnit={setDimUnit}
+                onChange={(dims) => applyDims(i, dims)}
+                onMeasure={() => setMeasuring({ index: i, material: d.material, mode: d.mode || 'area' })}
+              />
               <div className="list-preview" aria-label="Listing preview">
                 <span className="mono small">WILL BE LISTED AS</span>
                 <b>Reclaimed {d.material} — {d.quantity} {d.unit}</b>
+                {describeDims(d.mode || 'area', d.dims) && (
+                  <span className="muted small">size {describeDims(d.mode || 'area', d.dims)}</span>
+                )}
                 <span className="muted small">{d.condition} condition · ₹{d.suggested_price_per_unit}/{d.unit} · Total {fmtINR((Number(d.quantity) || 0) * (Number(d.suggested_price_per_unit) || 0))}</span>
                 {d.source && <span className="mono small muted">spotted by: {d.source}</span>}
               </div>
@@ -644,6 +744,22 @@ function UploadPanel() {
         </div>
       </div>
       {zoom && <CropViewer {...zoom} onClose={() => setZoom(null)} />}
+      {measuring && preview && (
+        <MeasureModal
+          src={preview}
+          material={measuring.material}
+          mode={measuring.mode}
+          calib={calib}
+          onCalib={setCalib}
+          initial={dets[measuring.index]?.dims}
+          onApply={(part) => {
+            const d = dets[measuring.index]
+            applyDims(measuring.index, { ...(d?.dims || {}), ...part })
+            setMeasuring(null)
+          }}
+          onClose={() => setMeasuring(null)}
+        />
+      )}
     </div>
   )
 }
@@ -766,7 +882,7 @@ function MarketPanel() {
               )}
               <div className="l-top"><span className="mdot" style={{ background: MATERIAL_PAINT[l.material] || '#1f1f1f' }} /><b>{l.title}</b><span className="tag">{l.condition}</span></div>
               <div className="muted">{l.description}</div>
-              <div className="l-meta mono">{l.quantity} {l.unit} · ₹{l.price_per_unit}/{l.unit} · total {fmtINR(l.quantity * l.price_per_unit)}{l.distance_km != null ? ` · ${l.distance_km} km` : ''}</div>
+              <div className="l-meta mono">{l.quantity} {l.unit} · ₹{l.price_per_unit}/{l.unit} · total {fmtINR(l.quantity * l.price_per_unit)}{l.dimensions_label ? ` · ${l.dimensions_label}` : ''}{l.distance_km != null ? ` · ${l.distance_km} km` : ''}</div>
               <div className="muted small">
                 {l.address || 'No location'}
                 {l.contractor ? ` · ${l.contractor}` : ''}

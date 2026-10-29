@@ -27,6 +27,9 @@ class ListingConfirm(BaseModel):
     # small copy for the feed; image_url is only fetched when someone opens it
     thumb_url: Optional[str] = None
     bbox: Optional[list[float]] = None
+    # measured size in millimetres (weight in kg, count in pieces) plus a label
+    dimensions: Optional[dict] = None
+    dimensions_label: Optional[str] = None
 
 
 class ListingPatch(BaseModel):

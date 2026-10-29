@@ -369,6 +369,7 @@ def build_detections(merged, condition, size=None):
             "bbox": bbox,
             "quantity": qty_for(mat, m["cov"]),
             "unit": meta["unit"],
+            "mode": meta["measure"],
             "condition": condition,
             "confidence": m["conf"],
             # guessed condition, so guessed price: Poor pays 40% of the base

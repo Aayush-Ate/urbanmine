@@ -22,6 +22,15 @@ class TestCatalog(unittest.TestCase):
             self.assertGreater(meta["price"], 0, mat)
             self.assertTrue(meta["unit"], mat)
 
+    def test_measure_modes_are_known_and_match_units(self):
+        allowed = {"area", "volume", "length", "weight", "pieces"}
+        for mat, meta in catalog.MATERIAL_META.items():
+            self.assertIn(meta["measure"], allowed, mat)
+        self.assertEqual(catalog.MATERIAL_META["Wood"]["unit"], "sq ft")
+        self.assertEqual(catalog.MATERIAL_META["Wood"]["measure"], "area")
+        self.assertEqual(catalog.MATERIAL_META["Metal"]["measure"], "weight")
+        self.assertEqual(catalog.MATERIAL_META["PVC Pipes"]["measure"], "length")
+
     def test_condition_price_covers_every_condition(self):
         self.assertEqual(set(catalog.CONDITION_PRICE), set(catalog.CONDITION_SCORES))
         for name, mult in catalog.CONDITION_PRICE.items():

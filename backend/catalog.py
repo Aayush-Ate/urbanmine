@@ -10,23 +10,25 @@ and match follow, because they all read MATERIAL_META.
 # A salvaged brick is not a new brick. Scrap metal follows the Indian scrap
 # market (steel ≈ ₹35/kg, copper ≈ ₹750/kg, aluminium ≈ ₹180/kg); the rest are
 # what a salvage yard pays for a good-condition lot.
+# measure = how the size is taken on site: area (L×W), volume (L×W×H),
+# length (one run), weight (kg on a scale), pieces (counted).
 MATERIAL_META = {
-    "Wood": {"unit": "sq ft", "price": 70, "icon": "🪵"},
-    "Bricks": {"unit": "pcs", "price": 6, "icon": "🧱"},
-    "Metal": {"unit": "kg", "price": 35, "icon": "🔩"},
-    "Doors": {"unit": "pcs", "price": 1500, "icon": "🚪"},
-    "Windows": {"unit": "pcs", "price": 1800, "icon": "🪟"},
-    "Concrete": {"unit": "cu ft", "price": 15, "icon": "🏗️"},
-    "Plywood": {"unit": "sq ft", "price": 30, "icon": "🪚"},
-    "Rebar": {"unit": "kg", "price": 34, "icon": "🔗"},
-    "Copper": {"unit": "kg", "price": 750, "icon": "🪙"},
-    "Aluminium": {"unit": "kg", "price": 180, "icon": "⚙️"},
-    "PVC Pipes": {"unit": "m", "price": 60, "icon": "🚰"},
-    "Tiles": {"unit": "sq ft", "price": 25, "icon": "🏺"},
-    "Marble": {"unit": "sq ft", "price": 100, "icon": "💎"},
-    "Glass": {"unit": "sq ft", "price": 45, "icon": "🪞"},
-    "Gypsum": {"unit": "pcs", "price": 120, "icon": "⬜"},
-    "Sand": {"unit": "cu ft", "price": 50, "icon": "⏳"},
+    "Wood": {"unit": "sq ft", "price": 70, "icon": "🪵", "measure": "area"},
+    "Bricks": {"unit": "pcs", "price": 6, "icon": "🧱", "measure": "pieces"},
+    "Metal": {"unit": "kg", "price": 35, "icon": "🔩", "measure": "weight"},
+    "Doors": {"unit": "pcs", "price": 1500, "icon": "🚪", "measure": "pieces"},
+    "Windows": {"unit": "pcs", "price": 1800, "icon": "🪟", "measure": "pieces"},
+    "Concrete": {"unit": "cu ft", "price": 15, "icon": "🏗️", "measure": "volume"},
+    "Plywood": {"unit": "sq ft", "price": 30, "icon": "🪚", "measure": "area"},
+    "Rebar": {"unit": "kg", "price": 34, "icon": "🔗", "measure": "weight"},
+    "Copper": {"unit": "kg", "price": 750, "icon": "🪙", "measure": "weight"},
+    "Aluminium": {"unit": "kg", "price": 180, "icon": "⚙️", "measure": "weight"},
+    "PVC Pipes": {"unit": "m", "price": 60, "icon": "🚰", "measure": "length"},
+    "Tiles": {"unit": "sq ft", "price": 25, "icon": "🏺", "measure": "area"},
+    "Marble": {"unit": "sq ft", "price": 100, "icon": "💎", "measure": "area"},
+    "Glass": {"unit": "sq ft", "price": 45, "icon": "🪞", "measure": "area"},
+    "Gypsum": {"unit": "pcs", "price": 120, "icon": "⬜", "measure": "pieces"},
+    "Sand": {"unit": "cu ft", "price": 50, "icon": "⏳", "measure": "volume"},
 }
 
 # A photo cannot tell a sound plank from a rotten one, so the condition is a
