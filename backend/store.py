@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS urbanmine_state (
 )
 """
 
+CREATE_IMAGES = """
+CREATE TABLE IF NOT EXISTS urbanmine_images (
+    id TEXT PRIMARY KEY,
+    bytes BYTEA NOT NULL,
+    content_type TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+)
+"""
+
 
 def _pg_connect():
     # one short connection per call. Neon likes this and there is no pool to leak.
@@ -71,3 +80,32 @@ def save_db(db):
         return
 
     DATA_FILE.write_text(json.dumps(db, indent=2))
+
+
+def save_image(fid, raw, content_type="image/jpeg"):
+    # keep the photo in postgres too. vercel throws away the function disk
+    # between requests, so the file we wrote is gone by the time a buyer
+    # opens the listing. the db row is what actually survives.
+    if not DATABASE_URL:
+        return
+    with _pg_connect() as conn:
+        conn.execute(CREATE_IMAGES)
+        conn.execute(
+            "INSERT INTO urbanmine_images (id, bytes, content_type) VALUES (%s, %s, %s) "
+            "ON CONFLICT (id) DO NOTHING",
+            (fid, raw, content_type),
+        )
+
+
+def load_image(fid):
+    # returns (bytes, content_type) or (None, None) if we never saved it
+    if not DATABASE_URL:
+        return None, None
+    with _pg_connect() as conn:
+        conn.execute(CREATE_IMAGES)
+        row = conn.execute(
+            "SELECT bytes, content_type FROM urbanmine_images WHERE id = %s", (fid,)
+        ).fetchone()
+    if not row:
+        return None, None
+    return bytes(row[0]), row[1]

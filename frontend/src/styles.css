@@ -84,6 +84,7 @@ input, select {
   display: grid; place-items: center; margin-right: 2px;
 }
 .cta.ghost { background: transparent; color: var(--forest); border: 1.5px solid var(--forest); padding: 8px 6px 8px 14px; }
+.cta.ghost:hover { background: rgba(31,31,31,.06); }
 .cta.sm { padding: 8px 6px 8px 14px; font-size: 13px; }
 .det { border-top: 1px solid var(--line); padding: 14px 0; display: grid; gap: 6px; animation: rise .7s var(--ease) both; }
 .det-top { display: flex; gap: 10px; align-items: center; }
@@ -95,10 +96,11 @@ input, select {
 .conf { margin-left: auto; font-family: var(--font-mono); background: #d9d9d9; border: 1px solid #1f1f1f; border-radius: 99px; padding: 4px 10px; font-size: 12px; }
 .ok-box { background: var(--green); color: #d9d9d9; border-radius: 12px; padding: 10px 14px; margin-top: 10px; font-weight: 600; }
 .empty { border: 1px dashed var(--line); border-radius: 14px; padding: 26px; text-align: center; color: var(--ink2); background: #e6e6e6; }
-.wip-row { display: flex; gap: 20px; align-items: center; margin: 16px 0 18px; }
-.wip-row b { display: block; font-size: 15px; margin-bottom: 2px; }
-.wip-row p { margin: 0; max-width: 46ch; }
-.wip-note { width: 150px; height: auto; flex: none; transform: rotate(-2deg); filter: drop-shadow(0 10px 16px rgba(0,0,0,.16)); }
+/* a work-in-progress tab is only the note: centered, no controls */
+.wip-panel { display: grid; justify-items: center; text-align: center; gap: 14px; padding: 40px 20px 46px; }
+.wip-panel h2 { margin: 0; }
+.wip-panel p { margin: 0; max-width: 46ch; }
+.wip-note { width: 190px; height: auto; transform: rotate(-2deg); filter: drop-shadow(0 10px 16px rgba(0,0,0,.16)); }
 .skel i { display: block; height: 64px; border-radius: 14px; background: linear-gradient(90deg,#c2c2c2,#d4d4d4,#c2c2c2); margin: 10px 0; animation: sh 1.2s infinite; }
 @keyframes sh { 50% { opacity: .5; } }
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
@@ -126,7 +128,6 @@ input, select {
 .foot { text-align: center; padding: 18px; color: var(--ink2); font-size: 12px; }
 @media (max-width: 900px) {
   .grid2 { grid-template-columns: 1fr; }
-  .wip-row { flex-direction: column; align-items: flex-start; gap: 12px; }
   .map-card { position: static; }
   .loc-row { grid-template-columns: 1fr; }
 }
@@ -158,12 +159,13 @@ input, select {
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 /* LocationPicker: search + presets + GPS + mini map, zero coordinate typing */
 .loc { display: grid; gap: 8px; margin: 10px 0; }
-.loc-row { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; align-items: end; }
+.loc-row { display: grid; grid-template-columns: 1.4fr 1fr auto auto; gap: 10px; align-items: end; }
 .loc-search { position: relative; }
 .loc-results { list-style: none; margin: -4px 0 0; padding: 6px; background: #e6e6e6; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 2px; }
 .loc-results button { width: 100%; text-align: left; background: none; border: 0; cursor: pointer; padding: 8px 10px; border-radius: 8px; font-size: 14px; }
 .loc-results button:hover { background: #1f1f1f; color: #d9d9d9; }
-.loc-gps { white-space: nowrap; margin-top: 0; }
+.loc-gps, .loc-none { white-space: nowrap; margin-top: 0; }
+.cta:disabled { opacity: .45; cursor: not-allowed; }
 .loc-mini { height: 220px; }
 .loc-readout { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #d4d4d4; border: 1px solid #1f1f1f; border-radius: 12px; padding: 8px 12px; font-size: 14px; }
 /* Upload steps + AI thinking checklist */

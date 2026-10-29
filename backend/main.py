@@ -8,14 +8,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from catalog import MATERIAL_META
 from schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
 from scoring import haversine_km, match_score
-from store import DATABASE_URL, UPLOAD_DIR, load_db, save_db
+from store import DATABASE_URL, UPLOAD_DIR, load_db, load_image, save_db, save_image
 from vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
 
 # this is the main app object
@@ -95,6 +95,9 @@ async def analyze(file: UploadFile = File(...),
     # fid is a random id so two photos do not overwrite each other
     fid = f"{uuid.uuid4().hex[:10]}{ext}"
     (UPLOAD_DIR / fid).write_bytes(raw)
+    # the disk above is just a warm cache. postgres is the real copy,
+    # because the host wipes the folder between requests.
+    save_image(fid, raw, file.content_type or "image/jpeg")
 
     # this runs all the AI passes and returns what it found
     # detect_materials shrinks the photo once inside, then reuses that copy
@@ -186,12 +189,18 @@ def list_listings(material: Optional[str] = None,
     # if user gave a location, calculate distance and sort by nearest
     if lat is not None and lng is not None:
         with_dist = []
+        # listings with no location cannot be measured. Keep them, listed after
+        # the ones we can place, instead of hiding real inventory.
+        no_point = []
         for l in out:
+            if l.get("lat") is None or l.get("lng") is None:
+                no_point.append({**l, "distance_km": None})
+                continue
             # haversine_km gives distance between two lat lng points
             d = haversine_km(lat, lng, l["lat"], l["lng"])
             if d <= max_distance_km:
                 with_dist.append({**l, "distance_km": round(d, 1)})
-        out = sorted(with_dist, key=lambda x: x["distance_km"])
+        out = sorted(with_dist, key=lambda x: x["distance_km"]) + no_point
 
     return out
 
@@ -228,6 +237,9 @@ def match(m: MatchRequest):
     scored = []
     for l in db["listings"]:
         if l.get("status") != "active":
+            continue
+        # a listing with no coordinates has no distance, so it cannot be scored
+        if l.get("lat") is None or l.get("lng") is None:
             continue
         # match_score returns (score, distance)
         score, dist = match_score(l, m.material, m.quantity, m.lat, m.lng, m.condition)
@@ -286,5 +298,19 @@ def materials():
     return [{"name": k, **v} for k, v in MATERIAL_META.items()]
 
 
-# this serves photos from the uploads folder at /uploads/filename
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+# this serves photos at /uploads/filename.
+# disk first (fast, warm instance), then postgres (survives a cold start).
+@app.get("/uploads/{fid}")
+def upload(fid: str):
+    # fid is a plain filename. anything with a slash is not ours.
+    if "/" in fid or "\\" in fid or fid.startswith("."):
+        raise HTTPException(status_code=404, detail="image not found")
+
+    path = UPLOAD_DIR / fid
+    if path.exists():
+        return FileResponse(path)
+
+    raw, ctype = load_image(fid)
+    if not raw:
+        raise HTTPException(status_code=404, detail="image not found")
+    return Response(content=raw, media_type=ctype or "image/jpeg")

@@ -105,6 +105,8 @@ export function setPins(viewer, listings) {
   if (!viewer || !Cesium || viewer.isDestroyed()) return
   viewer.entities.removeAll()
   listings.forEach((l) => {
+    // no coordinates means nothing to pin on the globe
+    if (l.lat == null || l.lng == null) return
     viewer.entities.add({
       position: Cesium.Cartesian3.fromDegrees(l.lng, l.lat),
       point: {

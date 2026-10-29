@@ -14,9 +14,11 @@ class ListingConfirm(BaseModel):
     unit: Optional[str] = None
     condition: str = "Good"
     price_per_unit: Optional[float] = None
-    lat: float = 12.9716
-    lng: float = 77.5946
-    address: str = "Bengaluru"
+    # no default point: a listing with no location is honest,
+    # a listing pinned to Bengaluru centre when nobody said so is not
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    address: str = ""
     contractor: str = ""
     title: Optional[str] = None
     description: str = ""

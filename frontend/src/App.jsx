@@ -12,7 +12,7 @@ import wipNote from './assets/work-in-progress.png'
 // API reads VITE_API_BASE at build time. Empty string means dev mode,
 // Vite proxy sends /api to :8000. Share builds bake the tunnel URL here.
 const API = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || ''
-// BLR is Bengaluru center coordinates, used as default location
+// BLR is Bengaluru centre: the globe's starting view, never a saved location
 const BLR = { lat: 12.9716, lng: 77.5946 }
 
 // MATERIAL_PAINT gives each material a color for dots and map pins
@@ -27,8 +27,8 @@ const MATERIAL_PAINT = {
 const TABS = [
   { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos. AI reads location and materials.' },
   { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials nearby.' },
-  { id: 'match', label: 'Smart Match', short: 'Match', title: 'Smart matching', sub: 'Ranked by material 40 · quantity 25 · distance 20 · condition 15.' },
-  { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests', sub: 'Accept or decline incoming material requests.' },
+  { id: 'match', label: 'Smart Match', short: 'Match', title: 'Smart matching', sub: 'Work in progress — check back soon.' },
+  { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests', sub: 'Work in progress — check back soon.' },
 ]
 
 // fmtINR converts a number to Indian rupees format like ₹1.5 lakh or ₹2 Cr
@@ -249,8 +249,18 @@ export default function App() {
           <div className="tab-panel" key={tab}>
             {tab === 'upload' && <UploadPanel />}
             {tab === 'market' && <MarketPanel />}
-            {tab === 'match' && <MatchPanel />}
-            {tab === 'requests' && <RequestsPanel />}
+            {tab === 'match' && (
+              <WipPanel
+                title="Smart matching"
+                blurb="The ranking works, but the inventory is thin, so most searches come back empty. Check back soon."
+              />
+            )}
+            {tab === 'requests' && (
+              <WipPanel
+                title="Buyer requests"
+                blurb="The form and the save work. The inbox and buyer updates do not. Check back soon."
+              />
+            )}
           </div>
         </main>
 
@@ -325,8 +335,18 @@ export default function App() {
           <div className="tab-panel" key={tab}>
             {tab === 'upload' && <UploadPanel />}
             {tab === 'market' && <MarketPanel />}
-            {tab === 'match' && <MatchPanel />}
-            {tab === 'requests' && <RequestsPanel />}
+            {tab === 'match' && (
+              <WipPanel
+                title="Smart matching"
+                blurb="The ranking works, but the inventory is thin, so most searches come back empty. Check back soon."
+              />
+            )}
+            {tab === 'requests' && (
+              <WipPanel
+                title="Buyer requests"
+                blurb="The form and the save work. The inbox and buyer updates do not. Check back soon."
+              />
+            )}
           </div>
         </main>
 
@@ -335,6 +355,21 @@ export default function App() {
         </footer>
       </div>
     </div>
+  )
+}
+
+// ============================================================
+// 0 · Work-in-progress placeholder
+// ============================================================
+// A tab that is not finished shows only this. No form, no buttons:
+// if a tab says work in progress it should not also hand you a form.
+function WipPanel({ title, blurb }) {
+  return (
+    <div className="card bezel"><div className="card-in wip-panel">
+      <h2>{title}</h2>
+      <img className="wip-note" src={wipNote} alt="This website is a work in progress. Check back soon." />
+      <p className="muted">{blurb}</p>
+    </div></div>
   )
 }
 
@@ -362,8 +397,9 @@ function UploadPanel() {
   const [verification, setVerification] = useState(null)
   // imageUrl is the saved photo URL the backend returns for this upload
   const [imageUrl, setImageUrl] = useState('')
-  // form has lat, lng, address, contractor
-  const [form, setForm] = useState({ lat: BLR.lat, lng: BLR.lng, address: 'Koramangala, Bengaluru', contractor: '' })
+  // form has lat, lng, address, contractor.
+  // no default point: "no location" is a real answer until the user sets one.
+  const [form, setForm] = useState({ lat: null, lng: null, address: '', contractor: '' })
   // locSource says where location came from (photo EXIF, map, GPS, preset)
   const [locSource, setLocSource] = useState('')
   // saved is listings already published
@@ -401,22 +437,25 @@ function UploadPanel() {
     img.src = url
   })
 
-  // update location when LocationPicker changes
-  const setLoc = ({ lat, lng, address, source }) => {
+  // update location when LocationPicker changes.
+  // null lat/lng means the user picked "no location", so it must be kept as null.
+  const setLoc = (patch) => {
     setForm(s => ({
       ...s,
-      ...(lat != null ? { lat } : {}),
-      ...(lng != null ? { lng } : {}),
-      ...(address ? { address } : {}),
+      ...('lat' in patch ? { lat: patch.lat } : {}),
+      ...('lng' in patch ? { lng: patch.lng } : {}),
+      ...('address' in patch ? { address: patch.address } : {}),
     }))
-    if (source) setLocSource(source)
+    if ('source' in patch) setLocSource(patch.source || '')
   }
 
   // send photo to backend /api/analyze
   const runAnalyze = async (f, plat, plng, paddr) => {
     const fd = new FormData()
     fd.append('file', f, 'photo.jpg')
-    fd.append('lat', plat); fd.append('lng', plng); fd.append('address', paddr)
+    // only send a point when one exists; the backend keeps its own default otherwise
+    if (plat != null && plng != null) { fd.append('lat', plat); fd.append('lng', plng) }
+    fd.append('address', paddr || '')
     try {
       const r = await fetch(`${API}/api/analyze`, { method: 'POST', body: fd })
       const j = await r.json()
@@ -475,7 +514,8 @@ function UploadPanel() {
     const body = {
       material: d.material, quantity: Number(d.quantity), unit: d.unit,
       condition: d.condition, price_per_unit: Number(d.suggested_price_per_unit),
-      lat: Number(form.lat), lng: Number(form.lng),
+      lat: form.lat == null ? null : Number(form.lat),
+      lng: form.lng == null ? null : Number(form.lng),
       address: form.address, contractor: form.contractor,
       title: `${d.material} — ${d.quantity} ${d.unit}`,
       description: `Detected by AI from a site photo (${Math.round(d.confidence * 100)}% match). Condition is the seller's estimate.`,
@@ -590,7 +630,7 @@ function MarketPanel() {
   // items is the list of listings from backend
   const [items, setItems] = useState([])
   // f has filters: search, material, condition, distance, location
-  const [f, setF] = useState({ q: '', material: '', condition: '', max_distance_km: 100, lat: BLR.lat, lng: BLR.lng, address: 'Koramangala, Bengaluru', source: '' })
+  const [f, setF] = useState({ q: '', material: '', condition: '', max_distance_km: 100, lat: null, lng: null, address: '', source: '' })
   // mats is list of material names for dropdown
   const [mats, setMats] = useState([])
   // mapRef is the Cesium map div
@@ -602,10 +642,14 @@ function MarketPanel() {
 
   // load listings from backend with current filters
   const load = async () => {
-    const p = new URLSearchParams({ ...f, q: f.q || '', material: f.material || '' })
-    if (!f.material) p.delete('material')
-    if (!f.q) p.delete('q')
-    if (!f.condition) p.delete('condition')
+    // build params by hand: URLSearchParams turns a null lat into "null"
+    const p = new URLSearchParams()
+    if (f.q) p.set('q', f.q)
+    if (f.material) p.set('material', f.material)
+    if (f.condition) p.set('condition', f.condition)
+    if (f.max_distance_km) p.set('max_distance_km', f.max_distance_km)
+    // no buyer point means no distance filter, not a fake one at Bengaluru centre
+    if (f.lat != null && f.lng != null) { p.set('lat', f.lat); p.set('lng', f.lng) }
     const r = await fetch(`${API}/api/listings?` + p.toString())
     setItems(await r.json())
   }
@@ -627,7 +671,9 @@ function MarketPanel() {
     return () => { alive = false; if (mapObj.current && !mapObj.current.isDestroyed()) { mapObj.current.destroy(); mapObj.current = null } }
   }, [])
   useEffect(() => { if (mapObj.current) setPins(mapObj.current, items) }, [items])
-  useEffect(() => { if (mapObj.current) flyTo(mapObj.current, f.lat, f.lng, 60000) }, [f.lat, f.lng])
+  useEffect(() => {
+    if (mapObj.current && f.lat != null && f.lng != null) flyTo(mapObj.current, f.lat, f.lng, 60000)
+  }, [f.lat, f.lng])
 
   // reqForm has buyer name, type, message
   const [reqForm, setReqForm] = useState({ buyer_name: '', buyer_type: 'Architect', message: '' })
@@ -646,13 +692,13 @@ function MarketPanel() {
       body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity }),
     })
     if (!r.ok) { setReqError('Could not save that request. Please try again.'); return }
-    setNotice(`Requested: ${l.title}. The contractor sees it under Requests.`)
+    setNotice(`Requested: ${l.title}. Saved for the contractor.`)
   }
 
   return (
     <div>
       <div className="card bezel"><div className="card-in">
-        <h2>Buyer location: distances measured from here</h2>
+        <h2>Buyer location: set one to see distances, or leave it empty</h2>
         <LocationPicker compact lat={f.lat} lng={f.lng} address={f.address} source={f.source} onChange={(p) => setF(s => ({ ...s, ...p }))} />
         <div className="filters">
           <label>Search<input placeholder="teak, steel, doors…" value={f.q} onChange={e => setF({ ...f, q: e.target.value })} /></label>
@@ -696,7 +742,7 @@ function MarketPanel() {
               <div className="muted">{l.description}</div>
               <div className="l-meta mono">{l.quantity} {l.unit} · ₹{l.price_per_unit}/{l.unit} · total {fmtINR(l.quantity * l.price_per_unit)}{l.distance_km != null ? ` · ${l.distance_km} km` : ''}</div>
               <div className="muted small">
-                {l.address}
+                {l.address || 'No location'}
                 {l.contractor ? ` · ${l.contractor}` : ''}
                 {l.confidence != null ? ` · AI ${Math.round(l.confidence * 100)}%` : ''}
               </div>
@@ -720,6 +766,8 @@ function MarketPanel() {
 // ============================================================
 // 3 · Smart Match panel
 // ============================================================
+// Not rendered while the tab is work in progress: WipPanel stands in.
+// Swap the render back in the tab tree when the ranking UI is finished.
 function MatchPanel() {
   // q has what buyer is looking for: material, qty, location, condition, distance
   const [q, setQ] = useState({ material: 'Wood', quantity: 500, lat: BLR.lat, lng: BLR.lng, condition: 'Good', max_distance_km: 50, address: 'Koramangala, Bengaluru', source: '' })
@@ -743,13 +791,6 @@ function MatchPanel() {
     <div className="card bezel"><div className="card-in">
       <h2>Smart matching</h2>
       <p className="muted">Score = material 40% + quantity 25% + distance 20% + condition 15%.</p>
-      <div className="wip-row">
-        <img className="wip-note" src={wipNote} alt="This website is a work in progress. Check back soon." />
-        <div>
-          <b>Matching is still half built.</b>
-          <p className="muted small">The ranking works, the inventory is thin, so most searches come back empty. Check back soon.</p>
-        </div>
-      </div>
       <LocationPicker compact lat={q.lat} lng={q.lng} address={q.address} source={q.source} onChange={(p) => setQ(s => ({ ...s, ...p }))} />
       <div className="filters">
         <label>Material<select value={q.material} onChange={e => setQ({ ...q, material: e.target.value })}>
@@ -779,6 +820,7 @@ function MatchPanel() {
 // ============================================================
 // 4 · Requests panel
 // ============================================================
+// Not rendered while the tab is work in progress: WipPanel stands in.
 function RequestsPanel() {
   // rows is all buyer requests
   const [rows, setRows] = useState([])
@@ -795,13 +837,6 @@ function RequestsPanel() {
     <div className="card bezel"><div className="card-in">
       <h2>Buyer requests</h2>
       <p className="muted">Buyer clicks "Request Material" → contractor accepts or declines here.</p>
-      <div className="wip-row">
-        <img className="wip-note" src={wipNote} alt="This website is a work in progress. Check back soon." />
-        <div>
-          <b>Requests are still half built.</b>
-          <p className="muted small">The form and the save work, the inbox and buyer updates do not. Check back soon.</p>
-        </div>
-      </div>
       {rows.length === 0 && <div className="empty">No requests yet. Request something from the Marketplace.</div>}
       {rows.map(r => (
         <div key={r.id} className="match-row">

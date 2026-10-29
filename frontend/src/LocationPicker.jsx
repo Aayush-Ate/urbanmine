@@ -16,6 +16,10 @@ export const AREAS = [
   { name: 'Bellandur', lat: 12.926, lng: 77.6762 },
 ]
 
+// DEFAULT_VIEW is where the mini globe looks when no point is set yet.
+// It is a view, not a location: nothing is ever saved from it.
+const DEFAULT_VIEW = { lat: 12.9716, lng: 77.5946 }
+
 const short = (name) => (name || '').split(',').slice(0, 3).join(',')
 
 // HERE Geocoding & Search (free tier at developer.here.com) when
@@ -94,11 +98,15 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
   // so a map tap never clobbers a freshly reverse-geocoded address.
   const set = (patch) => onChange(patch)
 
+  // "No location" is a valid choice. lat/lng stay null until the user picks a point.
+  const hasPoint = lat != null && lng != null && Number.isFinite(+lat) && Number.isFinite(+lng)
+
   // Reverse-geocode whenever the point moves → human address, no typing.
   // HERE with key, Nominatim fallback. Whichever answers first wins.
   useEffect(() => {
+    if (!hasPoint) { lastRev.current = ''; return }
     const key = `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`
-    if (!lat || !lng || lastRev.current === key) return
+    if (lastRev.current === key) return
     lastRev.current = key
     let live = true
     geoReverse(lat, lng)
@@ -142,8 +150,10 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
         return
       }
       mapObj.current = viewer
+      const at = hasPoint ? { lat: +lat, lng: +lng } : DEFAULT_VIEW
       const pin = viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(lng, lat),
+        position: Cesium.Cartesian3.fromDegrees(at.lng, at.lat),
+        show: hasPoint,
         point: {
           pixelSize: 14,
           color: Cesium.Color.fromCssColorString('#fbb833'),
@@ -158,7 +168,7 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
         },
       })
       markerRef.current = pin
-      flyTo(viewer, lat, lng, 30000)
+      flyTo(viewer, at.lat, at.lng, hasPoint ? 30000 : 120000)
       const toLL = (pos) => {
         const cart = viewer.camera.pickEllipsoid(pos)
         if (!cart) return null
@@ -204,11 +214,10 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
   // Keep the pin in sync when the point changes elsewhere (search / GPS / preset / EXIF).
   useEffect(() => {
     const viewer = mapObj.current
-    if (!viewer || !window.Cesium || viewer.isDestroyed()) return
-    if (markerRef.current) {
-      markerRef.current.position = window.Cesium.Cartesian3.fromDegrees(lng, lat)
-    }
-  }, [lat, lng])
+    if (!viewer || !window.Cesium || viewer.isDestroyed() || !markerRef.current) return
+    markerRef.current.show = hasPoint
+    if (hasPoint) markerRef.current.position = window.Cesium.Cartesian3.fromDegrees(+lng, +lat)
+  }, [lat, lng, hasPoint])
 
   const useMyLocation = () => {
     if (!navigator.geolocation) { setErr('Geolocation not supported here.'); return }
@@ -218,6 +227,12 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
       () => { setGeoLoading(false); setErr('Location blocked. Allow it in the browser bar, or tap the map.') },
       { timeout: 10000 }
     )
+  }
+
+  // Clearing removes the point entirely. Callers store null, never a stand-in point.
+  const clearLocation = () => {
+    setErr(''); setResults([]); setQ('')
+    set({ lat: null, lng: null, address: '', source: '' })
   }
 
   return (
@@ -238,6 +253,9 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
         <button type="button" className="cta sm loc-gps" onClick={useMyLocation} disabled={geoLoading}>
           {geoLoading ? 'Locating…' : '◎ Current location'}
         </button>
+        <button type="button" className="cta ghost sm loc-none" onClick={clearLocation} disabled={!hasPoint}>
+          ✕ No location
+        </button>
       </div>
       {searching && <div className="mono small muted">searching…</div>}
       {results.length > 0 && (
@@ -257,9 +275,18 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
       {!compact && mapError && <div className="err" role="alert">{mapError}</div>}
       {!compact && <div className="mono small muted">tap map or drag pin, no coordinates to type</div>}
       <div className="loc-readout">
-        <span>📍 {address || 'resolving address…'}</span>
-        <span className="mono small">{Number(lat).toFixed(4)}, {Number(lng).toFixed(4)}</span>
-        {source && <span className="tag">{source}</span>}
+        {hasPoint ? (
+          <>
+            <span>📍 {address || 'resolving address…'}</span>
+            <span className="mono small">{Number(lat).toFixed(4)}, {Number(lng).toFixed(4)}</span>
+            {source && <span className="tag">{source}</span>}
+          </>
+        ) : (
+          <>
+            <span>📍 No location set</span>
+            <span className="mono small">distances hidden until you add one</span>
+          </>
+        )}
       </div>
     </div>
   )
