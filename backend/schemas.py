@@ -24,6 +24,8 @@ class ListingConfirm(BaseModel):
     description: str = ""
     confidence: Optional[float] = None
     image_url: Optional[str] = None
+    # small copy for the feed; image_url is only fetched when someone opens it
+    thumb_url: Optional[str] = None
     bbox: Optional[list[float]] = None
 
 

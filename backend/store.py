@@ -97,6 +97,19 @@ def save_image(fid, raw, content_type="image/jpeg"):
         )
 
 
+def delete_image(fid):
+    # drop the disk copy (a cache) and the postgres row (the real one)
+    try:
+        (UPLOAD_DIR / fid).unlink(missing_ok=True)
+    except OSError:
+        pass
+    if not DATABASE_URL:
+        return
+    with _pg_connect() as conn:
+        conn.execute(CREATE_IMAGES)
+        conn.execute("DELETE FROM urbanmine_images WHERE id = %s", (fid,))
+
+
 def load_image(fid):
     # returns (bytes, content_type) or (None, None) if we never saved it
     if not DATABASE_URL:

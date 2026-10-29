@@ -5,7 +5,6 @@
 import io
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
@@ -13,9 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from catalog import MATERIAL_META
+from images import THUMB_MAX, photo_jpeg
 from schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
 from scoring import haversine_km, match_score
-from store import DATABASE_URL, UPLOAD_DIR, load_db, load_image, save_db, save_image
+from store import DATABASE_URL, UPLOAD_DIR, delete_image, load_db, load_image, save_db, save_image
 from vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
 
 # this is the main app object
@@ -88,16 +88,30 @@ async def analyze(file: UploadFile = File(...),
                 "verification": {"checked": 0, "rejected": 0, "kept": 0},
                 "error": "Not a valid image. Use JPG or PNG."}
 
-    # save the original photo to the uploads folder
-    # ext is the file extension like .jpg or .png
-    ext = Path(file.filename or "upload.jpg").suffix or ".jpg"
+    # one bounded JPEG, always .jpg. the browser already shrinks, but a direct
+    # API call can send a 25MB photo, and that is what would get stored.
+    try:
+        photo = photo_jpeg(raw)
+    except Exception:
+        photo = raw
 
     # fid is a random id so two photos do not overwrite each other
-    fid = f"{uuid.uuid4().hex[:10]}{ext}"
-    (UPLOAD_DIR / fid).write_bytes(raw)
+    fid = f"{uuid.uuid4().hex[:10]}.jpg"
+    (UPLOAD_DIR / fid).write_bytes(photo)
     # the disk above is just a warm cache. postgres is the real copy,
     # because the host wipes the folder between requests.
-    save_image(fid, raw, file.content_type or "image/jpeg")
+    save_image(fid, photo, "image/jpeg")
+
+    # the feed only downloads this small copy. the viewer asks for image_url.
+    thumb_url = None
+    try:
+        thumb = photo_jpeg(photo, THUMB_MAX, 72)
+        thumb_fid = f"t{fid}"
+        (UPLOAD_DIR / thumb_fid).write_bytes(thumb)
+        save_image(thumb_fid, thumb, "image/jpeg")
+        thumb_url = f"/uploads/{thumb_fid}"
+    except Exception:
+        thumb_url = None
 
     # this runs all the AI passes and returns what it found
     # detect_materials shrinks the photo once inside, then reuses that copy
@@ -110,6 +124,7 @@ async def analyze(file: UploadFile = File(...),
 
     resp = {
         "image_url": f"/uploads/{fid}",
+        "thumb_url": thumb_url,
         "detections": dets,
         "model": model,
         "non_construction": others,
@@ -150,6 +165,7 @@ def create_listing(payload: ListingConfirm):
         "status": "active",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "image_url": payload.image_url,
+        "thumb_url": payload.thumb_url,
         "bbox": payload.bbox,
     }
 
@@ -229,6 +245,33 @@ def patch_listing(lid: str, p: ListingPatch):
     raise HTTPException(status_code=404, detail="listing not found")
 
 
+@app.delete("/api/listings/{lid}")
+def delete_listing(lid: str):
+    # removing a listing also removes its photos, so dead bytes do not pile up
+    db = load_db()
+    listing = next((l for l in db["listings"] if l["id"] == lid), None)
+    if not listing:
+        raise HTTPException(status_code=404, detail="listing not found")
+
+    db["listings"] = [l for l in db["listings"] if l["id"] != lid]
+
+    # two listings can point at the same photo, so only drop a file nothing else uses
+    for key in ("image_url", "thumb_url"):
+        url = listing.get(key)
+        if not url:
+            continue
+        fid = url.rsplit("/", 1)[-1]
+        still_used = any(
+            fid in (l.get("image_url") or "") or fid in (l.get("thumb_url") or "")
+            for l in db["listings"]
+        )
+        if not still_used:
+            delete_image(fid)
+
+    save_db(db)
+    return {"deleted": lid}
+
+
 @app.post("/api/match")
 def match(m: MatchRequest):
     # rank listings by how well they match what the buyer wants
@@ -306,11 +349,14 @@ def upload(fid: str):
     if "/" in fid or "\\" in fid or fid.startswith("."):
         raise HTTPException(status_code=404, detail="image not found")
 
+    # a random fid never changes content, so the browser can keep it for good
+    cache = {"Cache-Control": "public, max-age=31536000, immutable"}
+
     path = UPLOAD_DIR / fid
     if path.exists():
-        return FileResponse(path)
+        return FileResponse(path, headers=cache)
 
     raw, ctype = load_image(fid)
     if not raw:
         raise HTTPException(status_code=404, detail="image not found")
-    return Response(content=raw, media_type=ctype or "image/jpeg")
+    return Response(content=raw, media_type=ctype or "image/jpeg", headers=cache)

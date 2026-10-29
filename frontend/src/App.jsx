@@ -397,6 +397,8 @@ function UploadPanel() {
   const [verification, setVerification] = useState(null)
   // imageUrl is the saved photo URL the backend returns for this upload
   const [imageUrl, setImageUrl] = useState('')
+  // thumbUrl is the small copy the feed shows
+  const [thumbUrl, setThumbUrl] = useState('')
   // form has lat, lng, address, contractor.
   // no default point: "no location" is a real answer until the user sets one.
   const [form, setForm] = useState({ lat: null, lng: null, address: '', contractor: '' })
@@ -465,6 +467,7 @@ function UploadPanel() {
         setModel(j.model || '')
         setVerification(j.verification || null)
         setImageUrl(j.image_url || '')
+        setThumbUrl(j.thumb_url || '')
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
       }
@@ -476,7 +479,7 @@ function UploadPanel() {
   const onFile = async (f) => {
     if (!f) return
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f) })
-    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl('')
+    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl(''); setThumbUrl('')
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     try {
@@ -521,6 +524,7 @@ function UploadPanel() {
       description: `Detected by AI from a site photo (${Math.round(d.confidence * 100)}% match). Condition is the seller's estimate.`,
       confidence: d.confidence,
       image_url: imageUrl || null,
+      thumb_url: thumbUrl || null,
       bbox: d.bbox || null,
     }
     const r = await fetch(`${API}/api/listings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -725,14 +729,15 @@ function MarketPanel() {
         <div className="cards">
           {items.map(l => (
             <div key={l.id} className="card bezel"><div className="card-in">
-              {l.image_url && (
+              {(l.image_url || l.thumb_url) && (
                 <div className="l-photo">
+                  {/* feed loads the small copy; the viewer loads the full photo */}
                   <CropThumb
-                    src={`${API}${l.image_url}`}
+                    src={`${API}${l.thumb_url || l.image_url}`}
                     bbox={l.bbox}
                     alt={`${l.material} listing photo`}
                     onOpen={() => setZoom({
-                      src: `${API}${l.image_url}`, bbox: l.bbox, material: l.material,
+                      src: `${API}${l.image_url || l.thumb_url}`, bbox: l.bbox, material: l.material,
                       pct: l.confidence != null ? Math.round(l.confidence * 100) : null,
                     })}
                   />
