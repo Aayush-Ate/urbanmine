@@ -7,6 +7,7 @@ import { gsap } from 'gsap'
 import exifr from 'exifr'
 import LocationPicker from './LocationPicker.jsx'
 import { createViewer, flyTo, setPins } from './cesium.js'
+import wipNote from './assets/work-in-progress.png'
 
 // API reads VITE_API_BASE at build time. Empty string means dev mode,
 // Vite proxy sends /api to :8000. Share builds bake the tunnel URL here.
@@ -787,6 +788,13 @@ function RequestsPanel() {
     <div className="card bezel"><div className="card-in">
       <h2>Buyer requests</h2>
       <p className="muted">Buyer clicks "Request Material" → contractor accepts or declines here.</p>
+      <div className="wip-row">
+        <img className="wip-note" src={wipNote} alt="This website is a work in progress. Check back soon." />
+        <div>
+          <b>Requests are still half built.</b>
+          <p className="muted small">The form and the save work, the inbox and buyer updates do not. Check back soon.</p>
+        </div>
+      </div>
       {rows.length === 0 && <div className="empty">No requests yet. Request something from the Marketplace.</div>}
       {rows.map(r => (
         <div key={r.id} className="match-row">
