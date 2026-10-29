@@ -482,19 +482,40 @@ function UploadPanel() {
     setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl(''); setThumbUrl('')
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
+    let hasGps = false
     try {
       // exifr reads GPS from photo metadata
       // if photo has GPS tag, we use it as location
       const g = await exifr.gps(f)
       if (g && g.latitude && g.longitude) {
+        hasGps = true
         plat = +g.latitude.toFixed(5); plng = +g.longitude.toFixed(5)
         setForm(s => ({ ...s, lat: plat, lng: plng }))
         setLocSource('photo EXIF')
         setExifNote(`GPS found in photo → ${plat.toFixed(4)}, ${plng.toFixed(4)}`)
+      }
+    } catch { /* no readable metadata: handled below */ }
+
+    // Camera capture and chat apps strip the GPS tag, so a photo with no tag
+    // still gets a point from the device. A location the user already picked wins.
+    if (!hasGps && form.lat == null && form.lng == null) {
+      if (navigator.geolocation) {
+        setExifNote('No GPS tag in this photo. Asking this device for its location…')
+        navigator.geolocation.getCurrentPosition(
+          (p) => {
+            const lat = +p.coords.latitude.toFixed(5), lng = +p.coords.longitude.toFixed(5)
+            // ignore the answer if the photo was published from elsewhere meanwhile
+            setForm(s => (s.lat == null && s.lng == null ? { ...s, lat, lng } : s))
+            setLocSource('device GPS')
+            setExifNote(`No GPS tag in photo. Used this device → ${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+          },
+          () => setExifNote('No GPS tag in this photo and device location is blocked. Set the site below.'),
+          { timeout: 10000, maximumAge: 300000 }
+        )
       } else {
         setExifNote('No GPS tag in this photo. Set the site below.')
       }
-    } catch { setExifNote('No GPS tag in this photo. Set the site below.') }
+    }
     setPhase('detect')
     const blob = await prepImage(f)
     if (!blob) { setError("Couldn't read that photo. Please use JPG or PNG."); setLoading(false); setPhase('idle'); return }
@@ -540,7 +561,7 @@ function UploadPanel() {
       <div className="card bezel">
         <div className="card-in">
           <h2>1 · Site photo</h2>
-          <p className="muted">Drop a demolition photo. The AI reads the <b>location from the photo itself</b> (GPS tag) and detects materials. You verify.</p>
+          <p className="muted">Drop a demolition photo. The AI reads the <b>location from the photo itself</b> (GPS tag), falls back to this device when the photo has none, and detects materials. You verify.</p>
           <div className="steps" aria-label="Progress">
             {['Photo', 'AI review', 'Published'].map((s, i) => (
               <div key={s} className={i < step ? 'step done' : i === step ? 'step on' : 'step'}>{i < step ? '✓ ' : ''}{s}</div>
