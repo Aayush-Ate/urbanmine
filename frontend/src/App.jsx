@@ -743,6 +743,13 @@ function MatchPanel() {
     <div className="card bezel"><div className="card-in">
       <h2>Smart matching</h2>
       <p className="muted">Score = material 40% + quantity 25% + distance 20% + condition 15%.</p>
+      <div className="wip-row">
+        <img className="wip-note" src={wipNote} alt="This website is a work in progress. Check back soon." />
+        <div>
+          <b>Matching is still half built.</b>
+          <p className="muted small">The ranking works, the inventory is thin, so most searches come back empty. Check back soon.</p>
+        </div>
+      </div>
       <LocationPicker compact lat={q.lat} lng={q.lng} address={q.address} source={q.source} onChange={(p) => setQ(s => ({ ...s, ...p }))} />
       <div className="filters">
         <label>Material<select value={q.material} onChange={e => setQ({ ...q, material: e.target.value })}>
