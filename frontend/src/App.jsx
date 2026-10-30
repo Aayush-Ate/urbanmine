@@ -264,7 +264,7 @@ export default function App() {
         </main>
 
         <footer className="foot mono m-foot">
-          UrbanMine · {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
+          {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
         </footer>
 
         <nav className="m-tabs" role="tablist" aria-label="Marketplace sections">
@@ -335,9 +335,6 @@ export default function App() {
           </div>
         </main>
 
-        <footer className="foot mono">
-          UrbanMine MVP · React + FastAPI + YOLO + Cesium
-        </footer>
       </div>
     </div>
   )
@@ -880,7 +877,7 @@ function MarketPanel() {
           <h2>Nearby · 3D globe</h2>
           <div ref={mapRef} className="map" role="application" aria-label="3D globe of nearby listings" />
           {mapError && <div className="err" role="alert">{mapError}</div>}
-          <div className="mono small">Cesium globe · satellite view keyless · click a pin for details.</div>
+          <div className="mono small">Satellite view · click a pin for details.</div>
         </div></div>
       </div>
       {zoom && <CropViewer {...zoom} onClose={() => setZoom(null)} />}
