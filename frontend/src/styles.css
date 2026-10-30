@@ -40,12 +40,6 @@ input, select, button { font: inherit; }
 .snav:hover { background: rgba(255,255,255,.07); }
 .snav.active { background: #d9d9d9; color: var(--forest); }
 .snav.active .n { background: var(--forest); color: #e6e6e6; }
-.side-formula { margin-top: auto; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; padding: 14px; }
-.side-formula .bars { margin-top: 10px; }
-.side-tech { opacity: .7; margin-top: 10px; }
-.bar-row { display: grid; grid-template-columns: 90px 1fr 44px; gap: 10px; align-items: center; margin: 8px 0; font-size: 13px; }
-.bar { height: 8px; background: rgba(255,255,255,.14); border-radius: 99px; overflow: hidden; }
-.bar i { display: block; height: 100%; background: var(--amber2); border-radius: 99px; transition: width .8s var(--ease); }
 .side-status { display: flex; gap: 8px; align-items: center; font-size: 12px; opacity: .85; padding: 0 6px; font-family: var(--font-mono); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; flex: none; }
 .dot.ok { background: var(--amber); box-shadow: 0 0 8px var(--amber); }

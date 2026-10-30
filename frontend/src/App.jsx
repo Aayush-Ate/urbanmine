@@ -211,7 +211,7 @@ export default function App() {
   useLayoutEffect(() => {
     if (reduceMotion()) return
     const ctx = gsap.context(() => {
-      gsap.fromTo('.side-brand, .snav, .side-formula, .m-top, .mtab',
+      gsap.fromTo('.side-brand, .snav, .m-top, .mtab',
         { x: -14, opacity: 0 },
         { x: 0, opacity: 1, duration: 0.6, stagger: 0.05, ease: 'power3.out', clearProps: 'transform,opacity' })
     }, pageRef)
@@ -299,17 +299,6 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="side-formula">
-          <div className="side-label">Match formula</div>
-          <div className="bars">
-            {[['Material', 40], ['Quantity', 25], ['Distance', 20], ['Condition', 15]].map(([k, v]) => (
-              <div key={k} className="bar-row"><span>{k}</span>
-                <div className="bar"><i style={{ width: v * 2.2 + '%' }} /></div>
-                <b>{v}%</b></div>
-            ))}
-          </div>
-          <div className="mono small side-tech">Postgres · YOLOv8 · FastAPI · Cesium</div>
-        </div>
         <div className="side-status">
           <span className={health ? 'dot ok' : 'dot bad'} />
           {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
