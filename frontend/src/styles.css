@@ -10,7 +10,10 @@
   --font-mono: "JetBrainsMono Nerd Font", "Hack Nerd Font", "SF Mono", ui-monospace, SFMono-Regular, Menlo, "JetBrains Mono", monospace;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); }
+html { -webkit-text-size-adjust: 100%; }
+/* overflow-x stops one nowrap tag from widening every page on a phone. */
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); overflow-x: hidden; }
+img { max-width: 100%; }
 input, select, button { font: inherit; }
 .mono { font-family: var(--font-mono); }
 .small { font-size: 12px; }
@@ -142,6 +145,8 @@ input, select {
   .grid2 { grid-template-columns: 1fr; }
   .map-card { position: static; }
   .loc-row { grid-template-columns: 1fr; }
+  /* iOS zooms the page when a focused field is under 16px. */
+  input, select, textarea { font-size: 16px; }
 }
 /* Mobile shell: bottom tab bar + brand bar + thumb-first spacing */
 .m-shell { display: block; }
@@ -157,8 +162,8 @@ input, select {
 .m-page .map { height: 300px; }
 .m-page .cta { width: 100%; justify-content: center; }
 .m-foot { padding-bottom: 92px; }
-.m-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--forest); border-top: 1px solid #000; padding: 8px 6px calc(8px + env(safe-area-inset-bottom)); }
-.mtab { display: grid; gap: 3px; justify-items: center; background: transparent; border: 0; color: #d9d9d9; opacity: .6; font-size: 11px; font-weight: 700; padding: 6px 2px; cursor: pointer; border-radius: 8px; }
+.m-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--forest); border-top: 1px solid #000; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); justify-items: center; }
+.mtab { display: grid; gap: 3px; justify-items: center; align-items: center; background: transparent; border: 0; color: #d9d9d9; opacity: .6; font-size: 11px; font-weight: 700; padding: 6px 4px; cursor: pointer; border-radius: 8px; width: 100%; max-width: 90px; justify-self: center; }
 .mtab .num { font-family: var(--font-mono); font-size: 11px; border: 1px solid currentColor; border-radius: 6px; width: 20px; height: 20px; display: grid; place-items: center; }
 .mtab.active { opacity: 1; background: rgba(255,255,255,.12); }
 /* a11y-audit: keyboard + screen-reader + reduced-motion */

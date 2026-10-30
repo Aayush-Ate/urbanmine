@@ -30,7 +30,7 @@ const TABS = [
   { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos. AI reads location and materials.' },
   { id: 'market', label: 'Marketplace', short: 'Market', title: 'Marketplace', sub: 'Search reclaimed materials nearby.' },
   { id: 'match', label: 'Smart Match', short: 'Match', title: 'Smart matching', sub: 'Work in progress — check back soon.' },
-  { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests', sub: 'Work in progress — check back soon.' },
+  { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests' },
 ]
 
 // fmtINR converts a number to Indian rupees format like ₹1.5 lakh or ₹2 Cr
@@ -242,7 +242,7 @@ export default function App() {
           <div className="mark">UM</div>
           <div className="m-title">
             <div className="m-brand">UrbanMine · {active.title}</div>
-            <div className="m-sub">{active.sub}</div>
+            {active.sub && <div className="m-sub">{active.sub}</div>}
           </div>
           <span className={health ? 'dot ok' : 'dot bad'} title="Backend status" />
         </header>
@@ -258,10 +258,7 @@ export default function App() {
               />
             )}
             {tab === 'requests' && (
-              <WipPanel
-                title="Buyer requests"
-                blurb="The form and the save work. The inbox and buyer updates do not. Check back soon."
-              />
+              <WipPanel title="Buyer requests" />
             )}
           </div>
         </main>
@@ -324,7 +321,7 @@ export default function App() {
         <header className="topbar">
           <div>
             <h1>{active.title}</h1>
-            <p>Turn demolition waste into revenue. {active.sub}</p>
+            {active.sub && <p>Turn demolition waste into revenue. {active.sub}</p>}
           </div>
           <div className="spacer" />
           <div className="status-pill">
@@ -344,10 +341,7 @@ export default function App() {
               />
             )}
             {tab === 'requests' && (
-              <WipPanel
-                title="Buyer requests"
-                blurb="The form and the save work. The inbox and buyer updates do not. Check back soon."
-              />
+              <WipPanel title="Buyer requests" />
             )}
           </div>
         </main>
@@ -370,7 +364,7 @@ function WipPanel({ title, blurb }) {
     <div className="card bezel"><div className="card-in wip-panel">
       <h2>{title}</h2>
       <img className="wip-note" src={wipNote} alt="This website is a work in progress. Check back soon." />
-      <p className="muted">{blurb}</p>
+      {blurb ? <p className="muted">{blurb}</p> : null}
     </div></div>
   )
 }
