@@ -59,9 +59,11 @@ def health():
 
 @app.post("/api/analyze")
 async def analyze(file: UploadFile = File(...),
-                  lat: float = Form(12.9716),
-                  lng: float = Form(77.5946),
-                  address: str = Form("Bengaluru"),
+                  # optional on purpose: a photo with no point is honest, and the
+                  # server must never invent a city for it
+                  lat: Optional[float] = Form(None),
+                  lng: Optional[float] = Form(None),
+                  address: str = Form(""),
                   debug: bool = Form(False)):
     # photo comes in here, we save it, run AI, return what materials we found
     raw = await file.read()

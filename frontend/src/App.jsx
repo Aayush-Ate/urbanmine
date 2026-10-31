@@ -14,8 +14,40 @@ import wipNote from './assets/work-in-progress.png'
 // API reads VITE_API_BASE at build time. Empty string means dev mode,
 // Vite proxy sends /api to :8000. Share builds bake the tunnel URL here.
 const API = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || ''
-// BLR is Bengaluru centre: the globe's starting view, never a saved location
-const BLR = { lat: 12.9716, lng: 77.5946 }
+// Where the globe looks before we know where you are. A view, never a location.
+const WORLD_VIEW = { lat: 12, lng: 78, height: 20000000 }
+
+// One device-location read per page load, shared by the upload form and the
+// marketplace, so the browser only ever asks once.
+let deviceLoc = null
+function readDeviceLocation() {
+  if (deviceLoc) return Promise.resolve(deviceLoc)
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return Promise.reject(new Error('geolocation unavailable'))
+  }
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        deviceLoc = { lat: +p.coords.latitude.toFixed(5), lng: +p.coords.longitude.toFixed(5) }
+        resolve(deviceLoc)
+      },
+      reject,
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    )
+  })
+}
+
+// Rough km between two points, for judging whether a photo's GPS tag is where
+// the user actually is. Haversine, the same maths the backend ranks with.
+function kmBetween(a, b) {
+  const R = 6371
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.sqrt(s))
+}
 
 // MATERIAL_PAINT gives each material a color for dots and map pins
 const MATERIAL_PAINT = {
@@ -288,7 +320,7 @@ export default function App() {
           <div className="mark">UM</div>
           <div>
             <div className="side-brand-name">UrbanMine</div>
-            <div className="side-brand-sub">Demolition → reuse · Bengaluru</div>
+            <div className="side-brand-sub">Demolition → reuse</div>
           </div>
         </div>
         <div className="side-label">Workspace</div>
@@ -467,15 +499,44 @@ function UploadPanel() {
   const [saved, setSaved] = useState([])
   // error shows error message
   const [error, setError] = useState('')
+  // materialMeta is /api/materials, used only to show the Bengaluru retail range
+  // beside the rate, so the number stops looking arbitrary
+  const [materialMeta, setMaterialMeta] = useState({})
   // phase is idle | exif | detect | done
   const [phase, setPhase] = useState('idle')
   // exifNote is message about GPS found or not found
   const [exifNote, setExifNote] = useState('')
   // preppedRef holds the shrunk photo blob
   const preppedRef = useRef(null)
+  // photoGps is a GPS tag found in the photo. It is only adopted when it agrees
+  // with where this device is, because a downloaded photo carries a tag from
+  // wherever it was taken, and that used to publish an address the user was not at.
+  const [photoGps, setPhotoGps] = useState(null)
 
   // when component unmounts, revoke preview URL to free memory
   useEffect(() => () => { setPreview(p => { if (p) URL.revokeObjectURL(p); return null }) }, [])
+
+  useEffect(() => {
+    fetch(`${API}/api/materials`)
+      .then(r => r.json())
+      .then(list => setMaterialMeta(Object.fromEntries(list.map(m => [m.name, m]))))
+      .catch(() => {})
+  }, [])
+
+  // Ask the device where we are as soon as this tab opens, so publishing lists
+  // the site where the user actually is instead of leaving no point and letting
+  // the server fall back to a city.
+  useEffect(() => {
+    let live = true
+    readDeviceLocation()
+      .then((p) => {
+        if (!live) return
+        setForm(s => (s.lat == null && s.lng == null ? { ...s, lat: p.lat, lng: p.lng } : s))
+        setLocSource(prev => prev || 'device GPS')
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
 
   // shrink photo to max 1600px before upload
   // phone photos are 5-15MB, we make them smaller so upload is fast
@@ -542,16 +603,27 @@ function UploadPanel() {
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     let hasGps = false
+    setPhotoGps(null)
     try {
       // exifr reads GPS from photo metadata
-      // if photo has GPS tag, we use it as location
       const g = await exifr.gps(f)
       if (g && g.latitude && g.longitude) {
-        hasGps = true
-        plat = +g.latitude.toFixed(5); plng = +g.longitude.toFixed(5)
-        setForm(s => ({ ...s, lat: plat, lng: plng }))
-        setLocSource('photo EXIF')
-        setExifNote(`GPS found in photo → ${plat.toFixed(4)}, ${plng.toFixed(4)}`)
+        const gps = { lat: +g.latitude.toFixed(5), lng: +g.longitude.toFixed(5) }
+        // Where this device is, when we already know it. A photo taken here keeps
+        // its (more precise) tag. A photo taken somewhere else does not get to
+        // move the listing to an address the user is not standing at.
+        const mine = await readDeviceLocation().catch(() => null)
+        const away = mine ? kmBetween(mine, gps) : 0
+        if (mine && away > 25) {
+          setPhotoGps(gps)
+          setExifNote(`This photo's GPS tag is ${Math.round(away)} km away, so the listing uses your location. Tap "Use photo GPS" if that tag is the real site.`)
+        } else {
+          hasGps = true
+          plat = gps.lat; plng = gps.lng
+          setForm(s => ({ ...s, lat: plat, lng: plng }))
+          setLocSource('photo EXIF')
+          setExifNote(`GPS found in photo → ${plat.toFixed(4)}, ${plng.toFixed(4)}`)
+        }
       }
     } catch { /* no readable metadata: handled below */ }
 
@@ -652,6 +724,14 @@ function UploadPanel() {
             </div>
           )}
           {!loading && exifNote && <div className="mono small muted">{exifNote}</div>}
+          {photoGps && (
+            <button className="cta ghost sm" onClick={() => {
+              setForm(s => ({ ...s, lat: photoGps.lat, lng: photoGps.lng }))
+              setLocSource('photo EXIF')
+              setExifNote(`Using the photo's GPS → ${photoGps.lat.toFixed(4)}, ${photoGps.lng.toFixed(4)}`)
+              setPhotoGps(null)
+            }}>Use photo GPS</button>
+          )}
           <h2>2 · Site location</h2>
           <LocationPicker lat={form.lat} lng={form.lng} address={form.address} source={locSource} onChange={setLoc} />
           <div className="frow">
@@ -700,7 +780,14 @@ function UploadPanel() {
                 <label>Condition<select value={d.condition} onChange={e => updateDet(i, 'condition', e.target.value)}>
                   {['Excellent', 'Good', 'Fair', 'Poor'].map(c => <option key={c}>{c}</option>)}
                 </select></label>
-                <label>₹ / {d.unit}<input type="number" value={d.suggested_price_per_unit} onChange={e => updateDet(i, 'suggested_price_per_unit', e.target.value)} /></label>
+                <label>Rate ₹ per {d.unit}<input type="number" min="0" step="1" inputMode="decimal" value={d.suggested_price_per_unit} onChange={e => updateDet(i, 'suggested_price_per_unit', e.target.value)} /></label>
+              </div>
+              <div className="rate-note">
+                Salvage rate for used material, not the new-shop price.
+                {' '}Buyers pay {d.quantity} {d.unit} × ₹{d.suggested_price_per_unit} = {fmtINR((Number(d.quantity) || 0) * (Number(d.suggested_price_per_unit) || 0))}.
+                {materialMeta[d.material]?.market && (
+                  <> Bengaluru new-material retail, Oct 2026: {materialMeta[d.material].market}.</>
+                )}
               </div>
               <SizeBlock
                 d={d}
@@ -775,6 +862,17 @@ function MarketPanel() {
     setItems(await r.json())
   }
   useEffect(() => { load() }, [f.lat, f.lng])
+  // start the buyer point at this device, so distances mean something before
+  // anyone types. A point the user picked already wins.
+  useEffect(() => {
+    let live = true
+    readDeviceLocation()
+      .then((p) => {
+        if (live) setF(s => (s.lat == null && s.lng == null ? { ...s, lat: p.lat, lng: p.lng, source: 'device GPS' } : s))
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
   useEffect(() => { fetch(`${API}/api/materials`).then(r => r.json()).then(j => setMats(j.map(m => m.name))).catch(() => {}) }, [])
 
   // init Cesium globe once, show pins, follow buyer location
@@ -787,7 +885,12 @@ function MarketPanel() {
       if (!alive) { if (viewer && !viewer.isDestroyed()) viewer.destroy(); return }
       if (!viewer) { setMapError('Globe failed to start. Search and GPS still work.'); return }
       mapObj.current = viewer
-      flyTo(viewer, BLR.lat, BLR.lng, 150000)
+      // open where the user is. With no permission, show the whole globe rather
+      // than dropping them into a city they have never been to.
+      const mine = await readDeviceLocation().catch(() => null)
+      if (!alive) { if (viewer && !viewer.isDestroyed()) viewer.destroy(); return }
+      if (mine) flyTo(viewer, mine.lat, mine.lng, 150000)
+      else flyTo(viewer, WORLD_VIEW.lat, WORLD_VIEW.lng, WORLD_VIEW.height)
     })()
     return () => { alive = false; if (mapObj.current && !mapObj.current.isDestroyed()) { mapObj.current.destroy(); mapObj.current = null } }
   }, [])
@@ -919,7 +1022,9 @@ function MarketPanel() {
 // Swap the render back in the tab tree when the ranking UI is finished.
 function MatchPanel() {
   // q has what buyer is looking for: material, qty, location, condition, distance
-  const [q, setQ] = useState({ material: 'Wood', quantity: 500, lat: BLR.lat, lng: BLR.lng, condition: 'Good', max_distance_km: 50, address: 'Koramangala, Bengaluru', source: '' })
+  // no default point: matching without knowing where the buyer is would rank
+  // everything around a city they never named
+  const [q, setQ] = useState({ material: 'Wood', quantity: 500, lat: null, lng: null, condition: 'Good', max_distance_km: 50, address: '', source: '' })
   // res is the ranked match results
   const [res, setRes] = useState([])
   // mats is material names for dropdown
@@ -928,7 +1033,8 @@ function MatchPanel() {
   const run = async () => {
     const r = await fetch(`${API}/api/match`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...q, quantity: Number(q.quantity), lat: Number(q.lat), lng: Number(q.lng), max_distance_km: Number(q.max_distance_km) }),
+      // Number(null) is 0, which would silently mean the Gulf of Guinea
+      body: JSON.stringify({ ...q, quantity: Number(q.quantity), max_distance_km: Number(q.max_distance_km) }),
     })
     const j = await r.json()
     setRes(j.results || [])

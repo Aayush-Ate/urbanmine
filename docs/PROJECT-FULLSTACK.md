@@ -173,6 +173,11 @@ panels: Upload, Marketplace, Smart Match, Requests, Impact.
 (HERE first, Nominatim fallback), 12 presets, device GPS, map tap, and a draggable
 pin. Every move reverse-geocodes.
 
+The panel asks the device for a point the moment it mounts, so the app opens
+where you are instead of a default city. Search is biased toward that point, not
+locked to a `viewbox`, and a photo's EXIF tag is only adopted when it is within
+25 km of you — otherwise it is offered as "Use photo GPS" and your location wins.
+
 `components/MeasureModal.jsx` is the ruler. Set a reference object, draw the line,
 and `lib/measureMath.js` turns pixels into a real size, which then replaces the
 coverage guess for that material.

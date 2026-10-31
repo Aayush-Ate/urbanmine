@@ -10,16 +10,26 @@ and match follow, because they all read MATERIAL_META.
 # A salvaged brick is not a new brick. Scrap metal follows the Indian scrap
 # market (steel ≈ ₹35/kg, copper ≈ ₹750/kg, aluminium ≈ ₹180/kg); the rest are
 # what a salvage yard pays for a good-condition lot.
+#
+# `market` is the new-material retail range in Bengaluru, checked 2026-10-31,
+# and it is shown next to the rate so a price does not look invented. It is
+# context, never a default: a used brick is not worth a new brick.
+#   Bricks  IndiaMART Bengaluru listings, 29 Oct 2026 (₹7–20/piece)
+#   Metal   local kabadi ₹25–30/kg, mill scrap ₹39–40/kg (Oct 2026)
+#   Plywood 19mm 8x4 ₹2,877/sheet ≈ ₹90/sq ft, guides quote ₹45–130/sq ft
+#   Wood    Bengaluru silver oak ₹50–52/sq ft, ₹420–475/cu ft
+# The other twelve have no `market` yet, so the UI shows nothing rather than a
+# made-up number. Add one only with a source.
 # measure = how the size is taken on site: area (L×W), volume (L×W×H),
 # length (one run), weight (kg on a scale), pieces (counted).
 MATERIAL_META = {
-    "Wood": {"unit": "sq ft", "price": 70, "icon": "🪵", "measure": "area"},
-    "Bricks": {"unit": "pcs", "price": 6, "icon": "🧱", "measure": "pieces"},
-    "Metal": {"unit": "kg", "price": 35, "icon": "🔩", "measure": "weight"},
+    "Wood": {"unit": "sq ft", "price": 70, "icon": "🪵", "measure": "area", "market": "₹50–90 / sq ft"},
+    "Bricks": {"unit": "pcs", "price": 6, "icon": "🧱", "measure": "pieces", "market": "₹8–20 / piece"},
+    "Metal": {"unit": "kg", "price": 35, "icon": "🔩", "measure": "weight", "market": "₹25–40 / kg"},
     "Doors": {"unit": "pcs", "price": 1500, "icon": "🚪", "measure": "pieces"},
     "Windows": {"unit": "pcs", "price": 1800, "icon": "🪟", "measure": "pieces"},
     "Concrete": {"unit": "cu ft", "price": 15, "icon": "🏗️", "measure": "volume"},
-    "Plywood": {"unit": "sq ft", "price": 30, "icon": "🪚", "measure": "area"},
+    "Plywood": {"unit": "sq ft", "price": 30, "icon": "🪚", "measure": "area", "market": "₹45–130 / sq ft"},
     "Rebar": {"unit": "kg", "price": 34, "icon": "🔗", "measure": "weight"},
     "Copper": {"unit": "kg", "price": 750, "icon": "🪙", "measure": "weight"},
     "Aluminium": {"unit": "kg", "price": 180, "icon": "⚙️", "measure": "weight"},

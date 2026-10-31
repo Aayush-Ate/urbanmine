@@ -10,7 +10,8 @@ export default function MeasureModal({ src, material, mode, calib, onCalib, init
   const imgRef = useRef(null)
   const [step, setStep] = useState(calib ? 'length' : 'calibrate')
   const [refId, setRefId] = useState('brick-190')
-  const [customMm, setCustomMm] = useState('')
+  const [customLength, setCustomLength] = useState('')
+  const [customUnit, setCustomUnit] = useState('mm')
   const [pending, setPending] = useState([])
   const [ref, setRef] = useState(calib || null)
   const [length, setLength] = useState(initial?.length_mm ? initial.length_mm : null)
@@ -24,7 +25,16 @@ export default function MeasureModal({ src, material, mode, calib, onCalib, init
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const refMm = refId === 'custom' ? Number(customMm) : (REFERENCES.find(r => r.id === refId)?.mm || 0)
+  // A custom reference is typed in whatever the tape said. Millimetres are the
+  // only unit the maths uses, so convert here instead of trusting the number.
+  const UNIT_MM = { mm: 1, cm: 10, in: 25.4 }
+  const customMm = Number(customLength) * (UNIT_MM[customUnit] || 1)
+  const refMm = refId === 'custom'
+    ? (Number.isFinite(customMm) && customMm > 0 ? customMm : 0)
+    : (REFERENCES.find(r => r.id === refId)?.mm || 0)
+  // A zero reference silently produces a useless scale, so say why nothing
+  // happens rather than ignoring the taps.
+  const scaleReady = refMm > 0
   const mmPerPx = ref?.mmPerPx || 0
 
   const measureOf = (a, b) => {
@@ -93,11 +103,15 @@ export default function MeasureModal({ src, material, mode, calib, onCalib, init
   const ready = length > 0 && (mode === 'length' || width > 0)
 
   const instruction = useMemo(() => {
-    if (step === 'calibrate') return 'Tap the two ends of a known object.'
+    if (step === 'calibrate') {
+      return scaleReady
+        ? 'Tap the two ends of the known object.'
+        : 'Type the real length of the reference object first.'
+    }
     if (step === 'length') return `Tap the two ends of the ${material.toLowerCase()}.`
     if (step === 'width') return 'Now tap across the width.'
     return 'Size measured. Use it, or tap Undo to redo a line.'
-  }, [step, material])
+  }, [step, material, scaleReady])
 
   const line = (l, color) => l && (
     <line x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y} stroke={color} strokeWidth="1.6"
@@ -119,7 +133,7 @@ export default function MeasureModal({ src, material, mode, calib, onCalib, init
         <div className="measure-stage">
           <div className="measure-img-wrap">
             <img ref={imgRef} src={src} alt={`${material} photo with the measuring points`}
-              onClick={tap} draggable="false" />
+              onClick={tap} onDragStart={e => e.preventDefault()} draggable="false" />
             <svg className="measure-svg" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
               {line(lengthLine, '#ffd400')}
               {line(widthLine, '#ffd400')}
@@ -147,10 +161,22 @@ export default function MeasureModal({ src, material, mode, calib, onCalib, init
               </select>
             </label>
             {refId === 'custom' && (
-              <label>Length (mm)
-                <input type="number" min="1" inputMode="numeric" value={customMm}
-                  placeholder="e.g. 400" onChange={e => setCustomMm(e.target.value)} />
-              </label>
+              <div className="measure-custom">
+                <label>Reference length
+                  <input type="number" min="0" step="0.1" inputMode="decimal" value={customLength}
+                    placeholder="e.g. 400" onChange={e => setCustomLength(e.target.value)} />
+                </label>
+                <label>Unit
+                  <select value={customUnit} onChange={e => setCustomUnit(e.target.value)}>
+                    <option value="mm">mm</option>
+                    <option value="cm">cm</option>
+                    <option value="in">inch</option>
+                  </select>
+                </label>
+                {!scaleReady && customLength !== '' && (
+                  <span className="err" role="alert">Type a length above zero.</span>
+                )}
+              </div>
             )}
             <span className="mono small muted">A brick, tile or sheet in the photo works best.</span>
           </div>
@@ -173,7 +199,7 @@ export default function MeasureModal({ src, material, mode, calib, onCalib, init
               ...(mode === 'length' ? {} : { width_mm: Math.round(width || 0) }),
             })}>Use size</button>
             {mode === 'volume' && (
-              <span className="mono small muted measure-note">height is typed on the card</span>
+              <span className="mono small muted measure-note">Apply the size, then type the height on the card.</span>
             )}
           </span>
         </div>

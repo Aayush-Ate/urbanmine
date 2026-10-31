@@ -197,6 +197,8 @@ input, select {
 /* Listing preview: plain words for what Confirm will publish, updates live */
 .list-preview { border: 1px solid #1f1f1f; border-radius: 12px; padding: 10px 14px; margin-top: 8px; background: #d9d9d9; display: grid; gap: 2px; }
 .list-preview b { font-size: 16px; }
+/* Sits under the rate field: what the number means, and what it adds up to. */
+.rate-note { font-size: 12px; color: var(--ink2); margin: -2px 0 6px; }
 /* The1 identity: material wayfinding dots + full-bleed paint blocks */
 .mdot { width: 10px; height: 10px; border-radius: 50%; background: #1f1f1f; border: 1px solid #1f1f1f; display: inline-block; margin-right: 8px; flex: none; align-self: center; }
 
@@ -247,9 +249,12 @@ input, select {
 .crop-close:disabled { opacity: .45; cursor: not-allowed; }
 /* Photo ruler: same two-tap idea as the iPhone Measure app */
 .measure-view { max-width: min(1000px, 96vw); }
-.measure-stage { background: #111; border: 1px solid #6a6a6a; border-radius: 8px; overflow: auto; max-height: 64vh; }
-.measure-img-wrap { position: relative; width: 100%; line-height: 0; }
-.measure-img-wrap img { display: block; width: 100%; height: auto; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+/* The wrap must be exactly the size of the rendered photo, so a tap lands on the
+   pixel under the finger. `object-fit: contain` inside a fixed box would letterbox
+   the image and every line would draw offset from the thing being measured. */
+.measure-stage { background: #111; border: 1px solid #6a6a6a; border-radius: 8px; display: grid; place-items: center; padding: 8px; }
+.measure-img-wrap { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
+.measure-img-wrap img { display: block; width: auto; height: auto; max-width: 100%; max-height: 58vh; cursor: crosshair; user-select: none; -webkit-user-select: none; }
 .measure-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .measure-label { position: absolute; transform: translate(-50%, -50%); background: #1f1f1f; color: #ffd400; border: 1px solid #ffd400; border-radius: 99px; padding: 3px 9px; font-family: var(--font-mono); font-size: 11px; white-space: nowrap; pointer-events: none; }
 .measure-steps { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
@@ -257,9 +262,11 @@ input, select {
 .mstep.on { background: var(--amber); color: #1f1f1f; }
 .measure-ref { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; background: #e6e6e6; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .measure-ref label { min-width: 190px; }
+.measure-custom { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.measure-custom label { min-width: 130px; }
 .measure-note { margin-left: 6px; }
 @media (max-width: 900px) {
-  .measure-stage { max-height: 50vh; }
+  .measure-img-wrap img { max-height: 44vh; }
   .measure-label { font-size: 10px; padding: 2px 7px; }
   .measure-row { grid-template-columns: 1fr 1fr; }
   .measure-one { max-width: none; }

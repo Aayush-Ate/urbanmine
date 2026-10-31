@@ -42,8 +42,9 @@ class ListingPatch(BaseModel):
 class MatchRequest(BaseModel):
     material: str
     quantity: float = 100
-    lat: float = 12.9716
-    lng: float = 77.5946
+    # required: ranking around a city the buyer never named is worse than an error
+    lat: float
+    lng: float
     condition: Optional[str] = None
     max_distance_km: float = 50
 

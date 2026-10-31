@@ -16,9 +16,9 @@ export const AREAS = [
   { name: 'Bellandur', lat: 12.926, lng: 77.6762 },
 ]
 
-// DEFAULT_VIEW is where the mini globe looks when no point is set yet.
-// It is a view, not a location: nothing is ever saved from it.
-const DEFAULT_VIEW = { lat: 12.9716, lng: 77.5946 }
+// DEFAULT_VIEW is where the mini globe looks when no point is set yet: the whole
+// globe, not a city. It is a view, never a location you can save.
+const DEFAULT_VIEW = { lat: 12, lng: 78, height: 20000000 }
 
 const short = (name) => (name || '').split(',').slice(0, 3).join(',')
 
@@ -26,13 +26,16 @@ const short = (name) => (name || '').split(',').slice(0, 3).join(',')
 // VITE_HERE_API_KEY is set; Nominatim (OSM, keyless) otherwise.
 const HERE_KEY =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_HERE_API_KEY) || ''
-const HERE_AT = '12.9716,77.5946' // Bengaluru bias
 
-async function geoSearch(q) {
+// Search is biased to the point you already have, and works anywhere when you
+// have none. The old version pinned every query to a Bengaluru viewbox, so a
+// search made from anywhere else returned Bengaluru streets or nothing at all.
+async function geoSearch(q, near) {
+  const at = near && near.lat != null ? `&at=${near.lat},${near.lng}` : ''
   if (HERE_KEY) {
     try {
       const r = await fetch(
-        `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(q)}&in=countryCode:IND&at=${HERE_AT}&limit=5&lang=en&apiKey=${HERE_KEY}`
+        `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(q)}${at}&limit=5&lang=en&apiKey=${HERE_KEY}`
       )
       const j = await r.json()
       if (Array.isArray(j.items) && j.items.length) {
@@ -45,8 +48,13 @@ async function geoSearch(q) {
       }
     } catch { /* fall through to Nominatim */ }
   }
+  // a viewbox around the caller's point only nudges the ranking. No point means
+  // a worldwide search instead of a Bengaluru-only one.
+  const box = near && near.lat != null
+    ? `&viewbox=${(near.lng - 1).toFixed(3)},${(near.lat + 1).toFixed(3)},${(near.lng + 1).toFixed(3)},${(near.lat - 1).toFixed(3)}`
+    : ''
   const r = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&limit=5&viewbox=77.4,13.2,77.8,12.8&accept-language=en`
+    `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&limit=5${box}&accept-language=en`
   )
   const j = await r.json()
   return (Array.isArray(j) ? j : []).map((x, i) => ({
@@ -124,13 +132,13 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
     let live = true
     searchTimer.current = setTimeout(async () => {
       try {
-        const out = await geoSearch(q.trim())
+        const out = await geoSearch(q.trim(), hasPoint ? { lat, lng } : null)
         if (live) setResults(out)
       } catch { if (live) setResults([]) }
       if (live) setSearching(false)
     }, 500)
     return () => { live = false; clearTimeout(searchTimer.current) }
-  }, [q])
+  }, [q, lat, lng, hasPoint])
 
   // Mini 3D globe: click to set, drag the SITE pin to fine-tune.
   useEffect(() => {
@@ -168,7 +176,7 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
         },
       })
       markerRef.current = pin
-      flyTo(viewer, at.lat, at.lng, hasPoint ? 30000 : 120000)
+      flyTo(viewer, at.lat, at.lng, hasPoint ? 30000 : (DEFAULT_VIEW.height || 120000))
       const toLL = (pos) => {
         const cart = viewer.camera.pickEllipsoid(pos)
         if (!cart) return null
@@ -239,9 +247,9 @@ export default function LocationPicker({ lat, lng, address, source, onChange, co
     <div className="loc">
       <div className="loc-row">
         <label className="loc-search">Find area or address
-          <input value={q} placeholder="e.g. HSR Layout, Whitefield…" onChange={e => setQ(e.target.value)} autoComplete="off" />
+          <input value={q} placeholder="Town, street or landmark…" onChange={e => setQ(e.target.value)} autoComplete="off" />
         </label>
-        <label>Area preset
+        <label>Bengaluru preset
           <select value="" onChange={e => {
             const a = AREAS.find(x => x.name === e.target.value)
             if (a) set({ lat: a.lat, lng: a.lng, address: a.name + ', Bengaluru', source: 'preset' })
