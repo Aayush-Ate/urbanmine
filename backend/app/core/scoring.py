@@ -5,7 +5,7 @@ quantity 25% + distance 20% + condition 15%.
 """
 import math
 
-from catalog import CONDITION_SCORES, FULL_QTY
+from app.core.catalog import CONDITION_SCORES, FULL_QTY
 
 
 def haversine_km(lat1, lon1, lat2, lon2):

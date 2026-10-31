@@ -12,11 +12,11 @@ import os
 
 from PIL import Image
 
-from catalog import (
+from app.core.catalog import (
     CLIP_GATE, CLIP_LABELS, COCO_TO_MATERIAL, CONDITION_PRICE, MATERIAL_META,
     WORLD_CLASSES, WORLD_CONF, WORLD_IGNORE, WORLD_NONCON, WORLD_PROMPTS,
 )
-from scoring import qty_for
+from app.core.scoring import qty_for
 
 # models load lazy. first photo is slow (download + load), after that its fast.
 # if a model fails we keep going with what we have.

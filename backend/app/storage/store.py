@@ -13,7 +13,9 @@ import json
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).parent
+# this file moved to app/storage/, so the backend folder is two levels up.
+# data.json and uploads/ stay next to requirements.txt, not inside the package.
+BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_FILE = Path(os.getenv("DATA_FILE") or (BASE_DIR / "data.json"))
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR") or (BASE_DIR / "uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

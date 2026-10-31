@@ -9,12 +9,12 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-import store
+from app.storage import store
 
 
 class TestListingDelete(unittest.TestCase):
     def setUp(self):
-        import main
+        from app import main
         self.client = TestClient(main.app)
         self.tmp = tempfile.TemporaryDirectory()
         self.real_data_file = store.DATA_FILE

@@ -3,7 +3,7 @@ outside the code: the 5.2 km distance was measured with PostGIS, and the
 match scores were worked out by hand from the 40/25/20/15 weights."""
 import unittest
 
-from scoring import haversine_km, match_score, qty_for
+from app.core.scoring import haversine_km, match_score, qty_for
 
 
 class TestHaversine(unittest.TestCase):

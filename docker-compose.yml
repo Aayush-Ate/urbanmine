@@ -1,6 +1,11 @@
 services:
-  # Optional production DB — MVP runs fine WITHOUT docker (JSON file fallback).
-  # Run `docker compose up -d db` then set DATABASE_URL to use real PostGIS.
+  # Optional local Postgres, for testing the DATABASE_URL path on this machine.
+  # The app runs fine without it (data.json fallback), and it needs no PostGIS:
+  # distance is haversine in backend/app/core/scoring.py. The postgis image is
+  # kept only because it is a superset and costs nothing.
+  #
+  #   docker compose up -d db
+  #   export DATABASE_URL=postgresql://urbanmine:urbanmine@localhost:5432/urbanmine
   db:
     image: postgis/postgis:16-3.4
     environment:

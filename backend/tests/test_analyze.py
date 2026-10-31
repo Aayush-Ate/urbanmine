@@ -17,7 +17,7 @@ def make_photo_bytes():
 
 class TestAnalyze(unittest.TestCase):
     def setUp(self):
-        import main
+        from app import main
         self.client = TestClient(main.app)
 
     def _post_photo(self, extra=None, debug=False):
@@ -29,9 +29,9 @@ class TestAnalyze(unittest.TestCase):
         files = {"file": ("photo.jpg", io.BytesIO(make_photo_bytes()), "image/jpeg")}
         return self.client.post("/api/analyze", data=data, files=files)
 
-    @mock.patch("main.YOLO_AVAILABLE", False)
-    @mock.patch("main.world_model", None)
-    @mock.patch("main.detect_materials")
+    @mock.patch("app.main.YOLO_AVAILABLE", False)
+    @mock.patch("app.main.world_model", None)
+    @mock.patch("app.main.detect_materials")
     def test_analyze_returns_5_values(self, mock_detect):
         """detect_materials must return 5 values: dets, model, others, is_site, verification."""
         mock_detect.return_value = ([], "visual", [], False,
@@ -46,14 +46,14 @@ class TestAnalyze(unittest.TestCase):
         self.assertIn("is_construction_site", j)
         self.assertEqual(j["verification"]["checked"], 0)
 
-    @mock.patch("main.YOLO_AVAILABLE", False)
-    @mock.patch("main.world_model", None)
-    @mock.patch("main.detect_materials")
+    @mock.patch("app.main.YOLO_AVAILABLE", False)
+    @mock.patch("app.main.world_model", None)
+    @mock.patch("app.main.detect_materials")
     def test_analyze_debug_includes_last_debug(self, mock_detect):
         """?debug=1 should include the _last_debug dict in the response."""
         mock_detect.return_value = ([], "visual", [], False,
                                     {"checked": 0, "rejected": 0, "kept": 0})
-        import main
+        from app import main
         main._last_debug = {"world_raw": [], "coco_raw": [], "clip_frame_p": 0.9}
         r = self._post_photo(debug=True)
         self.assertEqual(r.status_code, 200)
@@ -61,9 +61,9 @@ class TestAnalyze(unittest.TestCase):
         self.assertIn("debug", j)
         self.assertEqual(j["debug"]["clip_frame_p"], 0.9)
 
-    @mock.patch("main.YOLO_AVAILABLE", False)
-    @mock.patch("main.world_model", None)
-    @mock.patch("main.detect_materials")
+    @mock.patch("app.main.YOLO_AVAILABLE", False)
+    @mock.patch("app.main.world_model", None)
+    @mock.patch("app.main.detect_materials")
     def test_rejected_photo_has_model_field(self, mock_detect):
         """Oversized photo rejection must still include a model field."""
         files = {"file": ("photo.jpg", io.BytesIO(b"x" * (30 * 1024 * 1024)), "image/jpeg")}
@@ -74,9 +74,9 @@ class TestAnalyze(unittest.TestCase):
         self.assertIn("model", j)
         self.assertEqual(j["model"], "rejected")
 
-    @mock.patch("main.YOLO_AVAILABLE", False)
-    @mock.patch("main.world_model", None)
-    @mock.patch("main.detect_materials")
+    @mock.patch("app.main.YOLO_AVAILABLE", False)
+    @mock.patch("app.main.world_model", None)
+    @mock.patch("app.main.detect_materials")
     def test_invalid_image_has_model_field(self, mock_detect):
         """Non-image upload rejection must still include a model field."""
         files = {"file": ("photo.jpg", io.BytesIO(b"not an image"), "image/jpeg")}

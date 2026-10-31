@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createViewer, flyTo } from './cesium.js'
+import { createViewer, flyTo } from '../lib/cesium.js'
 
 export const AREAS = [
   { name: 'Koramangala', lat: 12.9352, lng: 77.6245 },

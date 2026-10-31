@@ -3,7 +3,7 @@ names a real material, each material has a quantity base, each price is
 positive."""
 import unittest
 
-import catalog
+from app.core import catalog
 
 
 class TestCatalog(unittest.TestCase):

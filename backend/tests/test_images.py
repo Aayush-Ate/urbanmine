@@ -4,7 +4,7 @@ import unittest
 
 from PIL import Image
 
-from images import THUMB_MAX, photo_jpeg
+from app.storage.images import THUMB_MAX, photo_jpeg
 
 
 def photo_bytes(size=(2000, 1500), mode="RGB"):

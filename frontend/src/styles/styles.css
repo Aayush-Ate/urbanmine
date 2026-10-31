@@ -103,6 +103,9 @@ input, select {
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
 .filters { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 12px; }
 .l-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+/* request and remove sit side by side; .cta carries a top margin we do not want here */
+.l-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.l-acts .cta { margin-top: 0; }
 .tag { background: var(--forest); color: #e6e6e6; border-radius: 99px; padding: 4px 10px; font-size: 12px; white-space: nowrap; }
 .l-meta { margin: 8px 0; }
 /* Size block: the measured lot, sitting above the listing preview */

@@ -1,6 +1,5 @@
-# UrbanMine Backend — simple linear code.
-# This file has all the routes. Each route does one thing and returns.
-# Run with: /opt/homebrew/anaconda3/bin/python -m uvicorn main:app --port 8000
+# UrbanMine Backend — routes only. The thinking lives in app/core, app/ai, app/storage.
+# Run from backend/ with: python -m uvicorn app.main:app --port 8000
 
 import io
 import uuid
@@ -11,12 +10,12 @@ from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from catalog import MATERIAL_META
-from images import THUMB_MAX, photo_jpeg
-from schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
-from scoring import haversine_km, match_score
-from store import DATABASE_URL, UPLOAD_DIR, delete_image, load_db, load_image, save_db, save_image
-from vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
+from app.core.catalog import MATERIAL_META
+from app.storage.images import THUMB_MAX, photo_jpeg
+from app.schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
+from app.core.scoring import haversine_km, match_score
+from app.storage.store import DATABASE_URL, UPLOAD_DIR, delete_image, load_db, load_image, save_db, save_image
+from app.ai.vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
 
 # this is the main app object
 # all routes are attached to this

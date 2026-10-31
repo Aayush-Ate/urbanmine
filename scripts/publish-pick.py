@@ -4,8 +4,11 @@ import mimetypes
 import os
 import sys
 import urllib.request
+from pathlib import Path
 
-DIST = "/Users/aayush/urbanmine/frontend/dist"
+# dist sits in this clone, one level up from scripts/. this used to be an
+# absolute /Users/... path, so the script only worked on one machine.
+DIST = str(Path(__file__).resolve().parents[1] / "frontend" / "dist")
 BASE = "https://here.now"
 CLIENT = {"X-HereNow-Client": "opencode/urbanmine-demo"}
 GOOD = ["urban", "mine", "demo", "reclaim", "build", "green", "city", "market",

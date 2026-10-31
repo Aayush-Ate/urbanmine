@@ -6,8 +6,8 @@ __pycache__/
 uploads/
 data.json
 
-# Model weights download on first request. Remove this line if you want to
-# bake them into the image (adds about 150MB).
+# Keep local weights out of the build context. They are not needed here: the
+# Dockerfile downloads them at build time and exercises them as a build check.
 *.pt
 
 # Tests are not needed in production.

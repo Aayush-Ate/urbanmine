@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { REFERENCES, fmtFeet, fmtMetres } from './measure.js'
+import { REFERENCES, fmtFeet, fmtMetres } from '../lib/measureMath.js'
 
 // MeasureModal is a photo ruler: a known object sets the scale, then two taps
 // give a length. Same two-tap interaction as the iPhone Measure app — a web

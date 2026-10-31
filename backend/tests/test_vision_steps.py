@@ -4,7 +4,7 @@ from unittest import mock
 
 from PIL import Image
 
-import vision
+from app.ai import vision
 
 
 def red_image():
@@ -117,7 +117,7 @@ class TestClipBoxes(unittest.TestCase):
             ("Wood", 0.90, 0.20, (0, 0, 50, 50)),
             ("Concrete", 0.20, 0.30, (10, 10, 60, 60)),
         ]
-        with mock.patch("vision.clip_check", return_value=[0.90, 0.20]):
+        with mock.patch("app.ai.vision.clip_check", return_value=[0.90, 0.20]):
             kept, rejected, checked = vision.clip_filter_hits(red_image(), hits)
         self.assertEqual([h[0] for h in kept], ["Wood"])
         self.assertEqual(rejected[0]["material"], "Concrete")
@@ -126,7 +126,7 @@ class TestClipBoxes(unittest.TestCase):
     def test_confident_box_is_also_checked(self):
         # model can be confident and wrong. a pen at 0.80 still aint metal.
         hits = [("Metal", 0.80, 0.31, (10, 10, 60, 60))]
-        with mock.patch("vision.clip_check", return_value=[0.05]):
+        with mock.patch("app.ai.vision.clip_check", return_value=[0.05]):
             kept, rejected, checked = vision.clip_filter_hits(red_image(), hits)
         self.assertEqual(kept, [])
         self.assertEqual(rejected[0]["material"], "Metal")
@@ -134,7 +134,7 @@ class TestClipBoxes(unittest.TestCase):
 
     def test_weak_box_above_gate_is_kept(self):
         hits = [("Concrete", 0.20, 0.30, (10, 10, 60, 60))]
-        with mock.patch("vision.clip_check", return_value=[0.80]):
+        with mock.patch("app.ai.vision.clip_check", return_value=[0.80]):
             kept, rejected, checked = vision.clip_filter_hits(red_image(), hits)
         self.assertEqual([h[0] for h in kept], ["Concrete"])
         self.assertEqual(rejected, [])

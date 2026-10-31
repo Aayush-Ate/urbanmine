@@ -45,6 +45,25 @@ rsync -a \
   --exclude 'tests/' \
   ./ "$STAGE/"
 
+# A Hugging Face Docker Space refuses to build without a README.md card that
+# declares the sdk, so write one into the staged copy. backend/ keeps no README
+# of its own any more; the docs live in ../docs.
+cat > "$STAGE/README.md" <<'CARD'
+---
+title: UrbanMine API
+sdk: docker
+app_port: 7860
+short_description: FastAPI and YOLO material detection for UrbanMine
+tags:
+  - urbanmine
+  - fastapi
+  - yolo
+---
+
+FastAPI backend for UrbanMine. Set DATABASE_URL (the pooled Neon URL) as a Space
+secret. UPLOAD_DIR is /tmp/uploads, which is wiped on restart.
+CARD
+
 hf repo create "$REPO_ID" --repo-type space --sdk docker --public --exist-ok
 hf spaces secrets add "$REPO_ID" -s DATABASE_URL
 hf upload "$REPO_ID" "$STAGE" . --repo-type space \

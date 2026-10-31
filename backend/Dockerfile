@@ -34,4 +34,4 @@ ENV UPLOAD_DIR=/tmp/uploads
 
 # Vercel and Spaces route to the port in PORT. Local default is 7860.
 EXPOSE 7860
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

@@ -5,10 +5,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { gsap } from 'gsap'
 import exifr from 'exifr'
-import LocationPicker from './LocationPicker.jsx'
-import MeasureModal from './Measure.jsx'
-import { describeDims, fromMm, measuredQuantity, toMm } from './measure.js'
-import { createViewer, flyTo, setPins } from './cesium.js'
+import LocationPicker from './components/LocationPicker.jsx'
+import MeasureModal from './components/MeasureModal.jsx'
+import { describeDims, fromMm, measuredQuantity, toMm } from './lib/measureMath.js'
+import { createViewer, flyTo, setPins } from './lib/cesium.js'
 import wipNote from './assets/work-in-progress.png'
 
 // API reads VITE_API_BASE at build time. Empty string means dev mode,
@@ -800,6 +800,10 @@ function MarketPanel() {
   const [reqForm, setReqForm] = useState({ buyer_name: '', buyer_type: 'Architect', message: '' })
   const [notice, setNotice] = useState('')
   const [reqError, setReqError] = useState('')
+  // pendingDel holds the listing id waiting for a second tap. removing is two
+  // steps on purpose: no window.confirm(), no alert(), same as the rest of the app.
+  const [pendingDel, setPendingDel] = useState(null)
+  const [delError, setDelError] = useState('')
   // zoom holds the listing photo that is open
   const [zoom, setZoom] = useState(null)
   const request = async (l) => {
@@ -814,6 +818,18 @@ function MarketPanel() {
     })
     if (!r.ok) { setReqError('Could not save that request. Please try again.'); return }
     setNotice(`Requested: ${l.title}. Saved for the contractor.`)
+  }
+
+  // the contractor removes their own listing. there is no auth yet, so anyone
+  // can tap this, which is honest for an MVP and wrong for a launch.
+  const remove = async (l) => {
+    setDelError('')
+    const r = await fetch(`${API}/api/listings/${l.id}`, { method: 'DELETE' })
+    if (!r.ok) { setDelError('Could not remove that listing. Try again.'); return }
+    setPendingDel(null)
+    setZoom(null)
+    setNotice(`Removed: ${l.title}. Its photo goes too if nothing else uses it.`)
+    load()
   }
 
   return (
@@ -839,6 +855,7 @@ function MarketPanel() {
           </select></label>
         </div>
         {reqError && <div className="err" role="alert">{reqError}</div>}
+        {delError && <div className="err" role="alert">{delError}</div>}
         {notice && <div className="ok-box" role="status">{notice}</div>}
       </div></div>
 
@@ -868,7 +885,17 @@ function MarketPanel() {
                 {l.contractor ? ` · ${l.contractor}` : ''}
                 {l.confidence != null ? ` · AI ${Math.round(l.confidence * 100)}%` : ''}
               </div>
-              <button className="cta ghost sm" onClick={() => request(l)}>Request material<span className="cta-ic">→</span></button>
+              <div className="l-acts">
+                <button className="cta ghost sm" onClick={() => request(l)}>Request material<span className="cta-ic">→</span></button>
+                {pendingDel === l.id ? (
+                  <>
+                    <button className="cta sm" onClick={() => remove(l)}>Tap again to remove<span className="cta-ic">✕</span></button>
+                    <button className="cta ghost sm" onClick={() => setPendingDel(null)}>Keep</button>
+                  </>
+                ) : (
+                  <button className="cta ghost sm" onClick={() => setPendingDel(l.id)} aria-label={`Remove ${l.title}`}>Remove<span className="cta-ic">✕</span></button>
+                )}
+              </div>
             </div></div>
           ))}
           {items.length === 0 && <div className="empty">No listings match. Loosen filters or publish from Upload tab.</div>}

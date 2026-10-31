@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import store
+from app.storage import store
 
 
 class TestStore(unittest.TestCase):
