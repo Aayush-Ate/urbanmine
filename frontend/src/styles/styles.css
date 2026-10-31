@@ -254,7 +254,10 @@ input, select {
    the image and every line would draw offset from the thing being measured. */
 .measure-stage { background: #111; border: 1px solid #6a6a6a; border-radius: 8px; display: grid; place-items: center; padding: 8px; }
 .measure-img-wrap { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
-.measure-img-wrap img { display: block; width: auto; height: auto; max-width: 100%; max-height: 58vh; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.measure-img-wrap img { display: block; width: auto; height: auto; max-width: 100%; max-height: 58vh; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
+/* Ends are grabbable: the wrap owns the pointer events, so the whole photo is
+   one drag surface and a touch near a dot moves it instead of starting a line. */
+.measure-img-wrap { touch-action: none; cursor: crosshair; }
 .measure-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .measure-label { position: absolute; transform: translate(-50%, -50%); background: #1f1f1f; color: #ffd400; border: 1px solid #ffd400; border-radius: 99px; padding: 3px 9px; font-family: var(--font-mono); font-size: 11px; white-space: nowrap; pointer-events: none; }
 .measure-steps { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
