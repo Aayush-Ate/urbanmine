@@ -1,8 +1,21 @@
 ---
-title: "UrbanMine"
-subtitle: "B2B demolition-reuse marketplace"
+title: "AI-Powered Construction Material Recovery & Marketplace"
+subtitle: "UrbanMine · SDG 12, Responsible Consumption and Production"
 date: "Review 1 · 2 November 2026"
 ---
+
+# The team
+
+| Name | ID |
+|---|---|
+| Aadhithya Prem | 1BF25CS002 |
+| A N Sheshanaga Kishan | 1BF25CS001 |
+| Arunavaya Singh | 1BF25CS047 |
+| Aaditya Sinha | 1BF25CS007 |
+| Aayush Ate | 1BF25CS010 |
+
+**Project:** AI-Powered Construction Material Recovery & Marketplace  
+**SDG:** 12, Responsible Consumption and Production
 
 # What it is
 
@@ -27,6 +40,30 @@ to landfill.**
 
 The constraint that shapes the product: cataloguing has to cost one photo, not an
 afternoon.
+
+---
+
+# Why SDG 12
+
+**Goal 12: Responsible Consumption and Production.** Two targets carry this project.
+
+**12.2**: By 2030, achieve the sustainable management and efficient use of
+natural resources.
+
+**12.5**: By 2030, substantially reduce waste generation through prevention,
+reduction, recycling and reuse.
+
+A building's timber, bricks and metal are resources that have already been
+extracted. Sending them to landfill means extracting again for the next build,
+and the reuse never happens because nobody wrote the stock down.
+
+**What the build does about it**
+
+- One photo replaces the survey that normally ends in "leave it", so salvage gets listed instead of skipped
+- Distance is part of the match score, so material travels 20 km rather than 200
+- The Impact tab totals material diverted and value recovered, which is the number this goal asks for
+
+---
 
 ---
 
