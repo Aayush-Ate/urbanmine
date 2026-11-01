@@ -136,7 +136,7 @@ also gives request validation for free, which is most of `schemas.py`.
 
 ## Why React + Vite and not Next.js
 
-It is a dashboard with five tabs, no router, no SEO requirement, and heavy client
+It is a dashboard with four tabs, no router, no SEO requirement, and heavy client
 media — photos and a WebGL globe. A static build plus two rewrites in
 `frontend/vercel.json` is the whole deployment story. Next would add a server we
 do not use.
