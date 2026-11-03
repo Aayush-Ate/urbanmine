@@ -2,8 +2,8 @@
 
 Live URLs
 - App: `https://fullstackproject-app.vercel.app`
-- Backend health: `https://backend-one-chi-21.vercel.app/api/health`
-- Backend listings: `https://backend-one-chi-21.vercel.app/api/listings`
+- Backend health: `https://backend-delta-green-77.vercel.app/api/health`
+- Backend listings: `https://backend-delta-green-77.vercel.app/api/listings`
 
 Repo on disk: `/Users/aayush/urbanmine`
 
@@ -45,7 +45,7 @@ Phone on same Wi-Fi: `HTTPS=1 npm run dev -- --host`, then open `https://<mac-la
 ## Production
 
 Frontend: Vercel, project `fullstackproject`, aliased to `fullstackproject-app.vercel.app`.
-Backend: Vercel container runtime, project `backend`, aliased at `backend-one-chi-21.vercel.app`.
+Backend: Vercel container runtime, project `backend`, aliased at `backend-delta-green-77.vercel.app`.
 Database: Neon Postgres (no PostGIS needed — distance is haversine in `backend/app/core/scoring.py`).
 
 `frontend/vercel.json` rewrites `/api` and `/uploads` to the backend alias, so the browser talks to one URL only.

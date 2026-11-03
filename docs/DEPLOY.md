@@ -92,7 +92,7 @@ command are the same path, which is worth keeping that way.
 The production alias looks like:
 
 ```
-https://backend-one-chi-21.vercel.app
+https://backend-delta-green-77.vercel.app
 ```
 
 The deployment URL (`backend-<hash>-...vercel.app`) is protected by Vercel
@@ -101,7 +101,7 @@ Authentication. Use the alias for public API calls.
 Check it:
 
 ```bash
-curl https://backend-one-chi-21.vercel.app/api/health
+curl https://backend-delta-green-77.vercel.app/api/health
 # {"status":"ok","yolo":true,"world":true,"store":"postgres","listings":6}
 ```
 
@@ -128,11 +128,11 @@ never enters the picture:
 "rewrites": [
   {
     "source": "/api/(.*)",
-    "destination": "https://backend-one-chi-21.vercel.app/api/$1"
+    "destination": "https://backend-delta-green-77.vercel.app/api/$1"
   },
   {
     "source": "/uploads/(.*)",
-    "destination": "https://backend-one-chi-21.vercel.app/uploads/$1"
+    "destination": "https://backend-delta-green-77.vercel.app/uploads/$1"
   }
 ]
 ```
