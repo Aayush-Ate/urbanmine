@@ -16,6 +16,7 @@ from app.core.catalog import (
     CLIP_GATE, CLIP_LABELS, COCO_TO_MATERIAL, CONDITION_PRICE, MATERIAL_META,
     WORLD_CLASSES, WORLD_CONF, WORLD_IGNORE, WORLD_NONCON, WORLD_PROMPTS,
 )
+from app.ai import vlm
 from app.core.scoring import qty_for
 
 # models load lazy. first photo is slow (download + load), after that its fast.
@@ -396,6 +397,12 @@ def is_construction_site(merged):
     return bool(merged)
 
 
+def provider_name():
+    # Which path the next analyze takes, before a photo arrives. /api/health
+    # shows this, so a demo can say "hosted model" or "local models" honestly.
+    return f"vlm:{vlm.model_id()}" if vlm.configured() else "local"
+
+
 def model_name():
     # list the engines that actually ran. dont claim yolo if it failed to load.
     names = []
@@ -414,6 +421,18 @@ def detect_materials(image_bytes):
     # returns dets, model, others, is_site, verification.
     # verification = {checked, rejected, kept} for the ui counter.
     _last_debug.clear()
+
+    # A hosted vision model, when a key is set, answers in one call: materials,
+    # quantity, condition, and whether the frame is a site at all. It fails
+    # soft — None means the four local passes below still run, so a dropped
+    # network costs seconds instead of turning into "no materials found".
+    hosted = vlm.vlm_detect(image_bytes)
+    if hosted:
+        _last_debug["provider"] = hosted["model"]
+        _last_debug["verification"] = hosted["verification"]
+        _last_debug["is_construction_site"] = hosted["is_site"]
+        return (hosted["dets"][:4], hosted["model"], hosted["others"],
+                hosted["is_site"], hosted["verification"])
 
     # 1. shrink once, reuse for every pass
     small = downscale_for_ai(image_bytes)

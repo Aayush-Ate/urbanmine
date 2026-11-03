@@ -19,8 +19,10 @@ docker build -t urbanmine-api backend && docker run --rm -p 8000:8000 urbanmine-
 The backend needs an interpreter with torch, ultralytics and transformers. A bare
 system python does not have them.
 
-Docs: `README.md` to run it, `docs/DECISIONS.md` for why anything is the way it
-is, `docs/PROJECT-FULLSTACK.md` for the module-by-module reference,
+Docs: `README.md` to run it, `docs/SYSTEM-DESIGN.md` for what the system is,
+`docs/AI.md` for the model and the fallback, `docs/SECURITY.md` for the audit and
+what is still open, `docs/DECISIONS.md` for why anything is the way it is,
+`docs/PROJECT-FULLSTACK.md` for the module-by-module reference,
 `docs/DEPLOY.md` for hosts and deploy commands.
 
 ## Where things live
@@ -34,7 +36,9 @@ answers, it is doing too much.
 | `backend/app/schemas.py` | request shapes | Pydantic only, no logic. |
 | `backend/app/core/catalog.py` | material names, units, prices, prompts, gates | Data only. Change a price or a prompt here. |
 | `backend/app/core/scoring.py` | `haversine_km`, `qty_for`, `match_score` | Pure maths, no I/O. This is the seam the tests pin. |
-| `backend/app/ai/vision.py` | `detect_materials(bytes)`, `downscale_for_ai(bytes)` | All model loading, lazily. Never import a model at module top level. |
+| `backend/app/ai/vision.py` | `detect_materials(bytes)`, `downscale_for_ai(bytes)` | All model loading, lazily. Never import a model at module top level. Chooses the hosted provider when configured, local passes otherwise. |
+| `backend/app/ai/vlm.py` | `vlm_detect(bytes)`, `configured()` | The hosted provider. Validates the model's JSON against the catalog; returns `None` on any failure so the caller falls back. |
+| `backend/app/core/ratelimit.py` | `SlidingWindow(limit, window_s).allow(key)` | In-memory, per instance. No persistence, no shared state — say so if asked. |
 | `backend/app/storage/store.py` | `load_db()`, `save_db(db)`, `save_image`, `load_image`, `delete_image` | The Postgres/JSON seam. Reads fresh every call, no cache. |
 | `backend/app/storage/images.py` | `photo_jpeg(raw, max_side, quality)` | One bounded copy, one thumbnail. Pillow only. |
 | `frontend/src/App.jsx` | shell and five panels | Layout and API calls. Sizing maths belongs in `lib/measureMath.js`. |

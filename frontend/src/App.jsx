@@ -1,5 +1,5 @@
 // UrbanMine Frontend — simple, one file.
-// React + Vite. Five tabs, each does one thing.
+// React + Vite. Four tabs, each does one thing.
 // GSAP motions on sidebar and tab switches, kept minimal.
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -65,11 +65,22 @@ const TABS = [
   { id: 'requests', label: 'Requests', short: 'Requests', title: 'Buyer requests' },
 ]
 
-// fmtINR converts a number to Indian rupees format like ₹1.5 lakh or ₹2 Cr
+// fmtINR converts a number to Indian rupees format like ₹1.5 lakh or ₹2 Cr.
+// A cleared input makes Number('') = 0, so the guard keeps "₹NaN" off the page.
 function fmtINR(n) {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`
-  if (n >= 100000) return `₹${(n / 100000).toFixed(1)} lakh`
-  return '₹' + Number(n).toLocaleString('en-IN')
+  const v = Number(n)
+  if (!Number.isFinite(v) || v < 0) return '₹0'
+  if (v >= 10000000) return `₹${(v / 10000000).toFixed(2)} Cr`
+  if (v >= 100000) return `₹${(v / 100000).toFixed(1)} lakh`
+  return '₹' + v.toLocaleString('en-IN')
+}
+
+// What is doing the looking, in words a user would use. The backend reports
+// the provider on /api/health, so the shell does not have to guess.
+function aiLabel(health) {
+  if (!health) return ''
+  const who = health.ai && health.ai !== 'local' ? 'hosted AI' : 'local AI'
+  return `${health.listings} listings · ${who}`
 }
 
 // useIsMobile follows the 900px breakpoint.
@@ -280,9 +291,9 @@ export default function App() {
         </header>
 
         <main className="page m-page" id="main">
-          <div className="tab-panel" key={tab}>
-            {tab === 'upload' && <UploadPanel />}
-            {tab === 'market' && <MarketPanel />}
+          <div className="tab-panel" key={tab} role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+            {tab === 'upload' && <UploadPanel onGoMarket={() => setTab('market')} />}
+            {tab === 'market' && <MarketPanel onGoUpload={() => setTab('upload')} />}
             {tab === 'match' && (
               <WipPanel
                 title="Smart matching"
@@ -296,12 +307,12 @@ export default function App() {
         </main>
 
         <footer className="foot mono m-foot">
-          {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
+          {aiLabel(health) || 'connecting…'}
         </footer>
 
         <nav className="m-tabs" role="tablist" aria-label="Marketplace sections">
           {TABS.map((t, i) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'mtab active' : 'mtab'} onClick={() => setTab(t.id)}>
+            <button key={t.id} role="tab" id={`tab-${t.id}`} aria-controls={`panel-${t.id}`} aria-selected={tab === t.id} className={tab === t.id ? 'mtab active' : 'mtab'} onClick={() => setTab(t.id)}>
               <span className="num">{i + 1}</span>{t.short}
             </button>
           ))}
@@ -326,14 +337,14 @@ export default function App() {
         <div className="side-label">Workspace</div>
         <nav className="side-nav" role="tablist" aria-label="Marketplace sections">
           {TABS.map((t, i) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'snav active' : 'snav'} onClick={() => setTab(t.id)}>
+            <button key={t.id} role="tab" id={`tab-${t.id}`} aria-controls={`panel-${t.id}`} aria-selected={tab === t.id} className={tab === t.id ? 'snav active' : 'snav'} onClick={() => setTab(t.id)}>
               <span className="n">{i + 1}</span>{t.label}
             </button>
           ))}
         </nav>
         <div className="side-status">
           <span className={health ? 'dot ok' : 'dot bad'} />
-          {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
+          {aiLabel(health) || 'connecting…'}
         </div>
       </aside>
 
@@ -347,14 +358,14 @@ export default function App() {
           <div className="spacer" />
           <div className="status-pill">
             <span className={health ? 'dot ok' : 'dot bad'} />
-            {health ? `${health.listings} listings · YOLOv8` : 'connecting…'}
+            {aiLabel(health) || 'connecting…'}
           </div>
         </header>
 
         <main className="page" id="main">
-          <div className="tab-panel" key={tab}>
-            {tab === 'upload' && <UploadPanel />}
-            {tab === 'market' && <MarketPanel />}
+          <div className="tab-panel" key={tab} role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+            {tab === 'upload' && <UploadPanel onGoMarket={() => setTab('market')} />}
+            {tab === 'market' && <MarketPanel onGoUpload={() => setTab('upload')} />}
             {tab === 'match' && (
               <WipPanel
                 title="Smart matching"
@@ -461,7 +472,7 @@ function SizeBlock({ d, unit, onUnit, onChange, onMeasure }) {
 // ============================================================
 // 1 · Upload + AI panel
 // ============================================================
-function UploadPanel() {
+function UploadPanel({ onGoMarket }) {
   // file is the photo user dropped
   const [file, setFile] = useState(null)
   // preview is the image shown on screen before upload
@@ -512,6 +523,9 @@ function UploadPanel() {
   // with where this device is, because a downloaded photo carries a tag from
   // wherever it was taken, and that used to publish an address the user was not at.
   const [photoGps, setPhotoGps] = useState(null)
+  // saving is keyed by detection index. One tap publishes once: a double tap
+  // used to create the same lot twice because nothing blocked the second call.
+  const [saving, setSaving] = useState({})
 
   // when component unmounts, revoke preview URL to free memory
   useEffect(() => () => { setPreview(p => { if (p) URL.revokeObjectURL(p); return null }) }, [])
@@ -590,6 +604,11 @@ function UploadPanel() {
         setThumbUrl(j.thumb_url || '')
         setOthers(j.non_construction || [])
         setIsSite(j.is_construction_site !== false)
+        // On a phone the verify column sits below the photo. Jump to it, so the
+        // result is not something the user has to go looking for.
+        if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) {
+          requestAnimationFrame(() => document.getElementById('verify-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+        }
       }
     } catch { setError('Analysis failed. Check the connection, then tap Re-analyse. The photo is kept.') }
     setLoading(false); setPhase('done')
@@ -674,14 +693,29 @@ function UploadPanel() {
   }
 
   // send confirmed detection to backend to create listing
-  const confirm = async (d) => {
+  const confirm = async (d, i) => {
+    if (saving[i]) return
+    // a cleared field is NaN, and the API refuses that with a 422. Catch it here
+    // with a sentence instead of a generic "could not save".
+    const qty = Number(d.quantity)
+    const rate = Number(d.suggested_price_per_unit)
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError('Quantity has to be a number above zero before publishing.')
+      return
+    }
+    if (!Number.isFinite(rate) || rate < 0) {
+      setError('Rate has to be a number. Zero is allowed for a free pickup.')
+      return
+    }
+    setError('')
+    setSaving(s => ({ ...s, [i]: true }))
     const body = {
-      material: d.material, quantity: Number(d.quantity), unit: d.unit,
-      condition: d.condition, price_per_unit: Number(d.suggested_price_per_unit),
+      material: d.material, quantity: qty, unit: d.unit,
+      condition: d.condition, price_per_unit: rate,
       lat: form.lat == null ? null : Number(form.lat),
       lng: form.lng == null ? null : Number(form.lng),
       address: form.address, contractor: form.contractor,
-      title: `${d.material} — ${d.quantity} ${d.unit}`,
+      title: `${d.material} — ${qty} ${d.unit}`,
       description: `Detected by AI from a site photo (${Math.round(d.confidence * 100)}% match). Condition is the seller's estimate.`,
       confidence: d.confidence,
       image_url: imageUrl || null,
@@ -690,10 +724,16 @@ function UploadPanel() {
       dimensions: d.dims || null,
       dimensions_label: describeDims(d.mode || 'area', d.dims) || null,
     }
-    const r = await fetch(`${API}/api/listings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    if (!r.ok) { setError('Could not save that listing. Please try again.'); return }
-    const j = await r.json()
-    setSaved(s => [...s, j])
+    try {
+      const r = await fetch(`${API}/api/listings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!r.ok) { setError('Could not save that listing. Please try again.'); return }
+      const j = await r.json()
+      setSaved(s => [...s, j])
+    } catch {
+      setError('Could not reach the server. That listing was not saved.')
+    } finally {
+      setSaving(s => { const next = { ...s }; delete next[i]; return next })
+    }
   }
 
   const step = saved.length ? 2 : file ? 1 : 0
@@ -748,11 +788,16 @@ function UploadPanel() {
                 : 'AI found no objects to check.'}
             </div>
           )}
-          {saved.length > 0 && <div className="ok-box">✓ {saved.length} listing(s) published. See Marketplace.</div>}
+          {saved.length > 0 && (
+            <div className="ok-box" role="status">
+              ✓ {saved.length} listing{saved.length === 1 ? '' : 's'} published.
+              <div className="ok-act"><button type="button" className="cta sm" onClick={onGoMarket}>See it in Marketplace</button></div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="card bezel">
+      <div className="card bezel" id="verify-card">
         <div className="card-in">
           <h2>3 · Verify & publish {dets.length ? `· ${dets.length}` : ''}</h2>
           {loading && <div className="skel"><i /><i /><i /></div>}
@@ -805,7 +850,7 @@ function UploadPanel() {
                 <span className="muted small">{d.condition} condition · ₹{d.suggested_price_per_unit}/{d.unit} · Total {fmtINR((Number(d.quantity) || 0) * (Number(d.suggested_price_per_unit) || 0))}</span>
                 {d.source && <span className="mono small muted">spotted by: {d.source}</span>}
               </div>
-              <button className="cta ghost" onClick={() => confirm(d)}>Confirm → Create listing<span className="cta-ic">+</span></button>
+              <button className="cta ghost" onClick={() => confirm(d, i)} disabled={saving[i]}>{saving[i] ? 'Publishing…' : 'Confirm → Create listing'}<span className="cta-ic">+</span></button>
             </div>
           ))}
         </div>
@@ -834,7 +879,7 @@ function UploadPanel() {
 // ============================================================
 // 2 · Marketplace + Map panel
 // ============================================================
-function MarketPanel() {
+function MarketPanel({ onGoUpload }) {
   // items is the list of listings from backend
   const [items, setItems] = useState([])
   // f has filters: search, material, condition, distance, location
@@ -847,9 +892,18 @@ function MarketPanel() {
   const mapObj = useRef(null)
   // mapError shows if globe failed to load
   const [mapError, setMapError] = useState('')
+  // loadingList keeps the grid from flashing "no listings" while it fetches
+  const [loadingList, setLoadingList] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  // filtersRef is the newest filters for a load() called from an event handler
+  const filtersRef = useRef(f)
+  filtersRef.current = f
 
-  // load listings from backend with current filters
-  const load = async () => {
+  // load listings from backend with current filters.
+  // `override` lets Reset search the new filters immediately, instead of
+  // waiting for a state update to exist on the next render.
+  const load = async (override) => {
+    const f = override || filtersRef.current
     // build params by hand: URLSearchParams turns a null lat into "null"
     const p = new URLSearchParams()
     if (f.q) p.set('q', f.q)
@@ -858,8 +912,24 @@ function MarketPanel() {
     if (f.max_distance_km) p.set('max_distance_km', f.max_distance_km)
     // no buyer point means no distance filter, not a fake one at Bengaluru centre
     if (f.lat != null && f.lng != null) { p.set('lat', f.lat); p.set('lng', f.lng) }
-    const r = await fetch(`${API}/api/listings?` + p.toString())
-    setItems(await r.json())
+    setLoadingList(true)
+    setLoadError('')
+    try {
+      const r = await fetch(`${API}/api/listings?` + p.toString())
+      if (!r.ok) throw new Error(String(r.status))
+      setItems(await r.json())
+    } catch {
+      // keep what is on screen: an empty grid would read as "nothing for sale"
+      setLoadError('Could not reach the marketplace. Check the connection, then search again.')
+    }
+    setLoadingList(false)
+  }
+
+  // reset widens every filter and searches at once, keeping the buyer point
+  const reset = () => {
+    const next = { ...f, q: '', material: '', condition: '', max_distance_km: 100 }
+    setF(next)
+    load(next)
   }
   useEffect(() => { load() }, [f.lat, f.lng])
   // start the buyer point at this device, so distances mean something before
@@ -903,6 +973,8 @@ function MarketPanel() {
   const [reqForm, setReqForm] = useState({ buyer_name: '', buyer_type: 'Architect', message: '' })
   const [notice, setNotice] = useState('')
   const [reqError, setReqError] = useState('')
+  // reqBusy stops a second tap creating a duplicate request
+  const [reqBusy, setReqBusy] = useState(false)
   // pendingDel holds the listing id waiting for a second tap. removing is two
   // steps on purpose: no window.confirm(), no alert(), same as the rest of the app.
   const [pendingDel, setPendingDel] = useState(null)
@@ -910,17 +982,28 @@ function MarketPanel() {
   // zoom holds the listing photo that is open
   const [zoom, setZoom] = useState(null)
   const request = async (l) => {
+    if (reqBusy) return
     if (!reqForm.buyer_name.trim()) {
-      setReqError('Add your name before requesting this material.')
+      // the name field is at the top of the panel, a long scroll away on a
+      // phone, so the message says where it is and takes the user there
+      setReqError('Add your name in the buyer box at the top, then tap Request again.')
+      document.getElementById('buyer-name')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       return
     }
     setReqError('')
-    const r = await fetch(`${API}/api/requests`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity }),
-    })
-    if (!r.ok) { setReqError('Could not save that request. Please try again.'); return }
-    setNotice(`Requested: ${l.title}. Saved for the contractor.`)
+    setReqBusy(true)
+    try {
+      const r = await fetch(`${API}/api/requests`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listing_id: l.id, ...reqForm, quantity: l.quantity }),
+      })
+      if (!r.ok) { setReqError('Could not save that request. Please try again.'); return }
+      setNotice(`Requested: ${l.title}. Saved for the contractor.`)
+    } catch {
+      setReqError('Could not reach the server. That request was not saved.')
+    } finally {
+      setReqBusy(false)
+    }
   }
 
   // the contractor removes their own listing. there is no auth yet, so anyone
@@ -941,7 +1024,11 @@ function MarketPanel() {
         <h2>Buyer location: set one to see distances, or leave it empty</h2>
         <LocationPicker compact lat={f.lat} lng={f.lng} address={f.address} source={f.source} onChange={(p) => setF(s => ({ ...s, ...p }))} />
         <div className="filters">
-          <label>Search<input placeholder="teak, steel, doors…" value={f.q} onChange={e => setF({ ...f, q: e.target.value })} /></label>
+          <label>Search
+            <input placeholder="teak, steel, doors…" value={f.q} inputMode="search" enterKeyHint="search"
+              onChange={e => setF({ ...f, q: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); load() } }} />
+          </label>
           <label>Material<select value={f.material} onChange={e => setF({ ...f, material: e.target.value })}>
             <option value="">All</option>{(mats.length ? mats : ['Wood', 'Bricks', 'Metal', 'Doors', 'Windows', 'Concrete']).map(m => <option key={m}>{m}</option>)}
           </select></label>
@@ -949,10 +1036,15 @@ function MarketPanel() {
             <option value="">Any</option>{['Excellent', 'Good', 'Fair', 'Poor'].map(c => <option key={c}>{c}</option>)}
           </select></label>
           <label>Within km<input type="number" value={f.max_distance_km} onChange={e => setF({ ...f, max_distance_km: e.target.value })} /></label>
-          <button className="cta sm" onClick={load}>Search<span className="cta-ic">⌕</span></button>
+          <button className="cta sm" onClick={() => load()}>Search<span className="cta-ic">⌕</span></button>
+          <button type="button" className="cta ghost sm" onClick={reset}>Reset</button>
+        </div>
+        {loadError && <div className="err" role="alert">{loadError}</div>}
+        <div className="mono small muted filter-count" role="status">
+          {loadingList ? 'loading listings…' : `${items.length} listing${items.length === 1 ? '' : 's'} in range`}
         </div>
         <div className="frow">
-          <label>Buyer name<input value={reqForm.buyer_name} placeholder="Your name" onChange={e => setReqForm({ ...reqForm, buyer_name: e.target.value })} /></label>
+          <label>Buyer name<input id="buyer-name" value={reqForm.buyer_name} placeholder="Your name" autoComplete="name" onChange={e => setReqForm({ ...reqForm, buyer_name: e.target.value })} /></label>
           <label>Type<select value={reqForm.buyer_type} onChange={e => setReqForm({ ...reqForm, buyer_type: e.target.value })}>
             {['Architect', 'Builder', 'Interior Designer', 'Artist', 'Contractor'].map(t => <option key={t}>{t}</option>)}
           </select></label>
@@ -962,7 +1054,7 @@ function MarketPanel() {
         {notice && <div className="ok-box" role="status">{notice}</div>}
       </div></div>
 
-      <div className="grid2">
+      <div className="grid2 market-grid">
         <div className="cards">
           {items.map(l => (
             <div key={l.id} className="card bezel"><div className="card-in">
@@ -989,7 +1081,7 @@ function MarketPanel() {
                 {l.confidence != null ? ` · AI ${Math.round(l.confidence * 100)}%` : ''}
               </div>
               <div className="l-acts">
-                <button className="cta ghost sm" onClick={() => request(l)}>Request material<span className="cta-ic">→</span></button>
+                <button className="cta ghost sm" onClick={() => request(l)} disabled={reqBusy}>{reqBusy ? 'Sending…' : 'Request material'}<span className="cta-ic">→</span></button>
                 {pendingDel === l.id ? (
                   <>
                     <button className="cta sm" onClick={() => remove(l)}>Tap again to remove<span className="cta-ic">✕</span></button>
@@ -1001,7 +1093,13 @@ function MarketPanel() {
               </div>
             </div></div>
           ))}
-          {items.length === 0 && <div className="empty">No listings match. Loosen filters or publish from Upload tab.</div>}
+          {items.length === 0 && loadingList && <div className="skel"><i /><i /><i /></div>}
+          {items.length === 0 && !loadingList && (
+            <div className="empty">
+              No listings match these filters.
+              <div className="empty-act"><button type="button" className="cta sm" onClick={onGoUpload}>Publish from Upload</button></div>
+            </div>
+          )}
         </div>
         <div className="card bezel map-card"><div className="card-in">
           <h2>Nearby · 3D globe</h2>

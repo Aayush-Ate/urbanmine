@@ -100,6 +100,10 @@ def save_image(fid, raw, content_type="image/jpeg"):
 
 
 def delete_image(fid):
+    # fid arrives from a URL, so it is re-checked here: a name with a separator
+    # or a leading dot would otherwise resolve outside UPLOAD_DIR.
+    if not fid or "/" in fid or "\\" in fid or fid.startswith("."):
+        return
     # drop the disk copy (a cache) and the postgres row (the real one)
     try:
         (UPLOAD_DIR / fid).unlink(missing_ok=True)

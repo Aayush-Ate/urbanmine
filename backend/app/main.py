@@ -2,34 +2,65 @@
 # Run from backend/ with: python -m uvicorn app.main:app --port 8000
 
 import io
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from app.ai.vision import _last_debug, YOLO_AVAILABLE, detect_materials, provider_name, world_model
 from app.core.catalog import MATERIAL_META
-from app.storage.images import THUMB_MAX, photo_jpeg
-from app.schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
+from app.core.ratelimit import SlidingWindow
 from app.core.scoring import haversine_km, match_score
+from app.schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
+from app.storage.images import THUMB_MAX, photo_jpeg
 from app.storage.store import DATABASE_URL, UPLOAD_DIR, delete_image, load_db, load_image, save_db, save_image
-from app.ai.vision import _last_debug, YOLO_AVAILABLE, detect_materials, world_model
 
 # this is the main app object
 # all routes are attached to this
 app = FastAPI(title="UrbanMine API")
 
-# this lets the frontend call the backend from a different port
-# without this the browser would block the requests
+# 25MB is what the UI promises and plenty for a phone photo the browser has
+# already shrunk. Nothing larger is read off the socket.
+MAX_UPLOAD_BYTES = int(float(os.getenv("MAX_UPLOAD_MB", "25")) * 1024 * 1024)
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/jpg", "image/png", "image/webp"}
+
+# One browser must not be able to queue twenty analyses. Per instance and in
+# memory: enough for a demo, not a defence against a distributed attack.
+ANALYZE_LIMIT = SlidingWindow(limit=int(os.getenv("ANALYZE_PER_MINUTE", "20")), window_s=60)
+
+# In production the browser calls /api on its own origin (Vercel rewrites it to
+# this service), so "*" is only needed for a tunnel or a phone on the LAN.
+# Credentials are off on purpose: there are no cookies here, and "*" combined
+# with credentials is both unsafe and rejected by browsers anyway.
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
+    max_age=600,
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    # This service returns JSON and image bytes, never HTML. These headers stop
+    # a browser from MIME-sniffing an upload, framing the API, or forwarding the
+    # referrer, and they cost nothing.
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(self), camera=(self)")
+    https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    if https:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 # the marketplace starts empty. only real listings created by users are saved.
 # if the database is down, the app still starts and the error shows in the log
@@ -52,29 +83,44 @@ def health():
         "yolo": YOLO_AVAILABLE,
         "world": bool(world_model),
         "store": "postgres" if DATABASE_URL else "json",
+        # which AI path the next analyze takes: a hosted model or the local stack
+        "ai": provider_name(),
         "listings": len(db["listings"]),
         "requests": len(db["requests"]),
     }
 
 
 @app.post("/api/analyze")
-async def analyze(file: UploadFile = File(...),
+async def analyze(request: Request,
+                  file: UploadFile = File(...),
                   # optional on purpose: a photo with no point is honest, and the
                   # server must never invent a city for it
                   lat: Optional[float] = Form(None),
                   lng: Optional[float] = Form(None),
                   address: str = Form(""),
                   debug: bool = Form(False)):
-    # photo comes in here, we save it, run AI, return what materials we found
-    raw = await file.read()
+    # This is the one route that can cost money and minutes, so it is limited.
+    client = request.client.host if request.client else "unknown"
+    if not ANALYZE_LIMIT.allow(client):
+        raise HTTPException(status_code=429,
+                            detail="Too many photos at once. Wait a minute, then try again.")
 
-    # raw is the photo bytes
-    # if it is bigger than 25MB we reject it because it is too large
-    if len(raw) > 25 * 1024 * 1024:
+    # Type is checked before the body is read, and the read itself is capped, so
+    # an enormous upload never lands in memory.
+    declared = (file.content_type or "").split(";")[0].strip().lower()
+    if declared not in ALLOWED_IMAGE_TYPES:
         return {"detections": [], "model": "rejected", "non_construction": [],
                 "is_construction_site": True,
                 "verification": {"checked": 0, "rejected": 0, "kept": 0},
-                "error": "Photo too large (25MB max)."}
+                "error": "Use a JPG, PNG or WebP photo."}
+
+    # photo comes in here, we save it, run AI, return what materials we found
+    raw = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        return {"detections": [], "model": "rejected", "non_construction": [],
+                "is_construction_site": True,
+                "verification": {"checked": 0, "rejected": 0, "kept": 0},
+                "error": f"Photo too large ({MAX_UPLOAD_BYTES // (1024 * 1024)}MB max)."}
 
     # PIL is Python Imaging Library
     # it opens images and checks if they are real images

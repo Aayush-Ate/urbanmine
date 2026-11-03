@@ -12,10 +12,13 @@ photo → Upload tab → POST /api/analyze → contractor edits → POST /api/li
 buyer → Marketplace / Smart Match → POST /api/requests → contractor accepts
 ```
 
-Stack: React 18 + Vite 5 · FastAPI · YOLO-World-m + YOLOv8n + a colour pass + a
-CLIP gate · Neon Postgres (or a JSON file) · Cesium satellite globes.
+Stack: React 18 + Vite 5 · FastAPI · a hosted vision model (Gemini Flash class)
+with YOLO-World-m + YOLOv8n + a colour pass + a CLIP gate as the zero-key
+fallback · Neon Postgres (or a JSON file) · Cesium satellite globes.
 
-It runs with zero keys. Keys only upgrade the map and the geocoder.
+It runs with zero keys. A key upgrades the detection (one call instead of four
+passes, and it can count a pile and read condition — see `docs/AI.md`) and the
+geocoder.
 
 ## Run it
 
@@ -89,6 +92,9 @@ urbanmine/
 ├── render.yaml            Render blueprint, docker runtime
 ├── docker-compose.yml     optional local Postgres for testing the pg path
 ├── docs/
+│   ├── SYSTEM-DESIGN.md       what the system is: boxes, flows, data, failure modes
+│   ├── AI.md                  which model, why, and how to switch providers
+│   ├── SECURITY.md            the audit: findings, fixes, residual risk
 │   ├── DECISIONS.md           why docker, why Neon, why Postgres and not SQLite,
 │   │                          and where each hard problem was actually solved
 │   ├── DEPLOY.md              live URLs and every deploy command
@@ -103,9 +109,11 @@ urbanmine/
 │   │   ├── schemas.py         what JSON is valid
 │   │   ├── core/
 │   │   │   ├── catalog.py     16 materials: units, salvage prices, CO2, prompts, gates
-│   │   │   └── scoring.py     distance + match score + quantity
+│   │   │   ├── scoring.py     distance + match score + quantity
+│   │   │   └── ratelimit.py   per-client limit on the expensive route
 │   │   ├── ai/
-│   │   │   └── vision.py      YOLO-World + YOLOv8n + colour pass + CLIP
+│   │   │   ├── vision.py      local passes: YOLO-World + YOLOv8n + colour + CLIP
+│   │   │   └── vlm.py         hosted vision model, one call, validated reply
 │   │   └── storage/
 │   │       ├── store.py       Postgres or data.json, plus the photo bytes
 │   │       └── images.py      resize to 1600px, thumbnail to 480px
@@ -149,7 +157,9 @@ question does this file answer" in one sentence, the file is doing too much.
 | `app/schemas.py` | What JSON is legal? Pydantic shapes, no logic. |
 | `app/core/catalog.py` | What is a material, what is it worth? 16 materials, units, salvage prices, CO2 factors, ~60 detection prompts, the hard negatives, the CLIP threshold. |
 | `app/core/scoring.py` | How near, how much, how good a match? `haversine_km`, `qty_for`, `match_score`. Pure maths, no I/O, which is why the tests pin it. |
-| `app/ai/vision.py` | What is in this photo? Four passes merged into one ranked list. Models load lazily, never at import. |
+| `app/ai/vision.py` | What is in this photo? Local passes: four engines merged into one ranked list. Models load lazily, never at import. |
+| `app/ai/vlm.py` | What is in this photo, answered by a hosted model in one call? Validated against the catalog; returns `None` so the local passes can take over. |
+| `app/core/ratelimit.py` | How often may one client call the expensive route? In-memory sliding window, per instance. |
 | `app/storage/store.py` | Where do listings live? Postgres when `DATABASE_URL` is set, `data.json` when it is not. Same two functions either way. |
 | `app/storage/images.py` | How big is a stored photo? One bounded 1600px copy and one 480px thumbnail. |
 
@@ -236,6 +246,11 @@ be revived. So: demo on localhost, publish only when explicitly asked.
 
 ## Where to read next
 
+- [`docs/SYSTEM-DESIGN.md`](docs/SYSTEM-DESIGN.md) — the whole system on one page:
+  boxes, flows, data shape, failure modes, and why the deploy is the size it is.
+- [`docs/AI.md`](docs/AI.md) — which model, why, and how to switch providers.
+- [`docs/SECURITY.md`](docs/SECURITY.md) — what was audited, what was fixed, what
+  is still open before a real launch.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md) — why each piece is what it is, what
   it cost, and where the hard bugs were solved.
 - [`docs/PROJECT-FULLSTACK.md`](docs/PROJECT-FULLSTACK.md) — the codebase

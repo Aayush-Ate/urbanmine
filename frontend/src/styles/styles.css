@@ -50,17 +50,27 @@ input, select, button { font: inherit; }
 .topbar p { margin: 2px 0 0; color: var(--ink2); font-size: 13px; }
 .topbar .spacer { flex: 1; }
 .status-pill { display: flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: 12px; background: #e6e6e6; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; white-space: nowrap; }
-.page { max-width: 1180px; padding: 22px 24px 40px; width: 100%; }
+.page { max-width: 1320px; padding: 22px 24px 40px; width: 100%; }
 .bezel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0; }
 .card-in { background: transparent; border-radius: 14px; padding: 20px; box-shadow: none; }
 .card h2 { font-family: var(--font-display); font-weight: 600; margin: 0 0 6px; font-size: 24px; letter-spacing: .01em; text-transform: uppercase; line-height: 1; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+/* Marketplace on a wide screen: two listing columns beside the globe, so the
+   width is used instead of stretching one column of cards down the page. */
+.market-grid { align-items: start; }
 .cards { display: grid; gap: 14px; }
+@media (min-width: 1380px) {
+  .market-grid { grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr); }
+  .market-grid .cards { grid-template-columns: 1fr 1fr; }
+  .market-grid .l-photo .det-crop { max-height: 170px; }
+}
 .drop { display: block; border: 1.5px dashed #1f1f1f; border-radius: 14px; overflow: hidden; cursor: pointer; background: #e0e0e0; min-height: 200px; transition: border-color .25s var(--ease), background .25s var(--ease); }
 .drop:hover { border-color: var(--amber); background: #e6e6e6; }
 .snap-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .snap-row .cta { margin-top: 0; }
-.drop img { width: 100%; height: 280px; object-fit: cover; display: block; }
+/* aspect-ratio instead of a fixed height: the preview keeps the photo's shape
+   at every width, so a portrait phone shot is not cropped to a letterbox. */
+.drop img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
 .drop-empty { padding: 60px 20px; text-align: center; display: grid; gap: 6px; color: var(--ink2); }
 .frow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
 label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
@@ -84,7 +94,7 @@ input, select {
 .cta.ghost:hover { background: rgba(31,31,31,.06); }
 .cta.sm { padding: 8px 6px 8px 14px; font-size: 13px; }
 .det { border-top: 1px solid var(--line); padding: 14px 0; display: grid; gap: 6px; animation: rise .7s var(--ease) both; }
-.det-top { display: flex; gap: 10px; align-items: center; }
+.det-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .det-crop { max-width: 140px; max-height: 84px; width: auto; height: auto; border-radius: 8px; object-fit: contain; border: 1px solid var(--line); background: #1f1f1f; flex: none; display: block; }
 .det-crop-empty { width: 84px; height: 84px; display: block; }
 /* the crop is a button so a tap opens the full photo with the box drawn on it */
@@ -101,8 +111,16 @@ input, select {
 .skel i { display: block; height: 64px; border-radius: 14px; background: linear-gradient(90deg,#c2c2c2,#d4d4d4,#c2c2c2); margin: 10px 0; animation: sh 1.2s infinite; }
 @keyframes sh { 50% { opacity: .5; } }
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
-.filters { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 12px; }
-.l-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+/* auto-fit instead of five fixed tracks: the same rule works from a phone to a
+   1300px window without a breakpoint per width. */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; align-items: end; margin-bottom: 10px; }
+.filter-count { margin: 0 0 12px; }
+.empty-act { margin-top: 14px; display: flex; justify-content: center; }
+.ok-act { margin-top: 10px; display: flex; }
+.ok-act .cta { margin-top: 0; }
+.l-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+/* a long AI-generated title wraps inside the card instead of widening the page */
+.l-top b { overflow-wrap: anywhere; min-width: 0; }
 /* request and remove sit side by side; .cta carries a top margin we do not want here */
 .l-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .l-acts .cta { margin-top: 0; }
@@ -124,7 +142,7 @@ input, select {
 .l-photo .det-crop { max-width: 100%; max-height: 200px; border-radius: 10px; }
 .l-photo .det-crop-btn { display: block; }
 .l-photo .det-crop-empty { width: 100%; height: 140px; }
-.map { height: 420px; border-radius: 14px; border: 1px solid var(--line); z-index: 1; overflow: hidden; position: relative; background: #0b1a13; }
+.map { height: clamp(280px, 46vh, 460px); border-radius: 14px; border: 1px solid var(--line); z-index: 1; overflow: hidden; position: relative; background: #0b1a13; }
 .map .cesium-viewer-bottom { font-size: 10px; }
 .map-card { position: sticky; top: 90px; align-self: start; }
 .match-list { display: grid; gap: 10px; margin-top: 12px; }
@@ -144,6 +162,12 @@ input, select {
   .loc-row { grid-template-columns: 1fr; }
   /* iOS zooms the page when a focused field is under 16px. */
   input, select, textarea { font-size: 16px; }
+  /* two 70px fields on a 360px phone is a thumb trap: one per line */
+  .frow { grid-template-columns: 1fr; }
+  /* 44px is the smallest comfortable touch target */
+  .cta, .snav, .mtab, .loc-results button { min-height: 44px; }
+  .l-acts .cta { flex: 1 1 auto; }
+  .m-page .map { height: 260px; }
 }
 /* Mobile shell: bottom tab bar + brand bar + thumb-first spacing */
 .m-shell { display: block; }
@@ -173,7 +197,7 @@ input, select {
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 /* LocationPicker: search + presets + GPS + mini map, zero coordinate typing */
 .loc { display: grid; gap: 8px; margin: 10px 0; }
-.loc-row { display: grid; grid-template-columns: 1.4fr 1fr auto auto; gap: 10px; align-items: end; }
+.loc-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end; }
 .loc-search { position: relative; }
 .loc-results { list-style: none; margin: -4px 0 0; padding: 6px; background: #e6e6e6; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 2px; }
 .loc-results button { width: 100%; text-align: left; background: none; border: 0; cursor: pointer; padding: 8px 10px; border-radius: 8px; font-size: 14px; }
@@ -182,6 +206,9 @@ input, select {
 .cta:disabled { opacity: .45; cursor: not-allowed; }
 .loc-mini { height: 220px; }
 .loc-readout { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #d4d4d4; border: 1px solid #1f1f1f; border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+/* Jumping to the verify column must clear the sticky brand bar, not hide
+   under it. 72px is the bar plus a line of breathing room. */
+#verify-card { scroll-margin-top: 72px; }
 /* Upload steps + AI thinking checklist */
 .steps { display: flex; gap: 8px; margin: 10px 0 4px; }
 .step { flex: 1; text-align: center; font-size: 12px; font-weight: 700; padding: 8px 4px; border-radius: 99px; background: #c6c6c6; color: var(--ink2); }
