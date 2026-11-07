@@ -9,6 +9,32 @@ import threading
 import time
 
 
+def client_ip(request) -> str:
+    """The caller's IP, looked through the proxy in front of us.
+
+    Vercel (and Cloudflare, once it is in front) terminate TLS, so
+    request.client.host is the *proxy*, not the user. Keying the limiter on it
+    gives every visitor one shared bucket — 20 analyses a minute for the whole
+    site instead of 20 per person. These headers carry the real address.
+
+    CF-Connecting-IP first: Cloudflare sets it at the edge and does not let a
+    client forge it. X-Forwarded-For next, for the Vercel rewrite path. The
+    socket peer is the last resort and the only one that works locally.
+    """
+    headers = getattr(request, "headers", None) or {}
+    for name in ("cf-connecting-ip", "x-real-ip"):
+        value = (headers.get(name) or "").strip()
+        if value:
+            return value
+    forwarded = (headers.get("x-forwarded-for") or "").strip()
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    client = getattr(request, "client", None)
+    return getattr(client, "host", None) or "unknown"
+
+
 class SlidingWindow:
     """Allow `limit` calls per key inside `window_s` seconds."""
 

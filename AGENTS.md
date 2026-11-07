@@ -23,7 +23,8 @@ Docs: `README.md` to run it, `docs/SYSTEM-DESIGN.md` for what the system is,
 `docs/AI.md` for the model and the fallback, `docs/SECURITY.md` for the audit and
 what is still open, `docs/DECISIONS.md` for why anything is the way it is,
 `docs/PROJECT-FULLSTACK.md` for the module-by-module reference,
-`docs/DEPLOY.md` for hosts and deploy commands.
+`docs/DEPLOY.md` for hosts and deploy commands, `docs/CLOUDFLARE.md` for the edge
+rules and why each one exists.
 
 ## Where things live
 

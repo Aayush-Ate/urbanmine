@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 
 from app.ai.vision import _last_debug, YOLO_AVAILABLE, detect_materials, provider_name, world_model
 from app.core.catalog import MATERIAL_META
-from app.core.ratelimit import SlidingWindow
+from app.core.ratelimit import SlidingWindow, client_ip
 from app.core.scoring import haversine_km, match_score
 from app.schemas import BuyerRequest, ListingConfirm, ListingPatch, MatchRequest, RequestPatch
 from app.storage.images import THUMB_MAX, photo_jpeg
@@ -100,7 +100,9 @@ async def analyze(request: Request,
                   address: str = Form(""),
                   debug: bool = Form(False)):
     # This is the one route that can cost money and minutes, so it is limited.
-    client = request.client.host if request.client else "unknown"
+    # Behind Vercel/Cloudflare the socket peer is the proxy, so the key comes
+    # from the forwarded address instead — otherwise every user shares a bucket.
+    client = client_ip(request)
     if not ANALYZE_LIMIT.allow(client):
         raise HTTPException(status_code=429,
                             detail="Too many photos at once. Wait a minute, then try again.")

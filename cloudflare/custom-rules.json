@@ -1,0 +1,28 @@
+{
+  "rules": [
+    {
+      "action": "block",
+      "description": "UrbanMine: debug=1 returns internal detection state — production only, use it locally",
+      "enabled": true,
+      "expression": "(http.request.uri.query contains \"debug=1\")"
+    },
+    {
+      "action": "block",
+      "description": "UrbanMine: API docs and OpenAPI schema are not public",
+      "enabled": true,
+      "expression": "(http.request.uri.path in {\"/docs\" \"/redoc\" \"/openapi.json\"})"
+    },
+    {
+      "action": "managed_challenge",
+      "description": "UrbanMine: write routes challenged for scripted clients (no auth yet — this is a speed bump, not a login)",
+      "enabled": true,
+      "expression": "(http.request.method in {\"PATCH\" \"DELETE\"} and not http.user_agent contains \"Mozilla/\")"
+    },
+    {
+      "action": "block",
+      "description": "UrbanMine: scanner and leak paths",
+      "enabled": true,
+      "expression": "(http.request.uri.path contains \"/.env\" or http.request.uri.path contains \"/.git\" or http.request.uri.path contains \"/wp-admin\" or http.request.uri.path contains \"/wp-login\" or http.request.uri.path contains \"/phpmyadmin\" or http.request.uri.path contains \"/actuator\")"
+    }
+  ]
+}

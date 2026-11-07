@@ -1,0 +1,23 @@
+{
+  "rules": [
+    {
+      "action": "block",
+      "description": "UrbanMine: /api/analyze is the route that costs model time — 30 per minute per IP",
+      "enabled": true,
+      "expression": "(http.request.uri.path eq \"/api/analyze\")",
+      "ratelimit": {
+        "characteristics": ["cf.colo.id", "ip.src"],
+        "period": 60,
+        "requests_per_period": 30,
+        "mitigation_timeout": 60
+      },
+      "action_parameters": {
+        "response": {
+          "status_code": 429,
+          "content_type": "application/json",
+          "content": "{\"detail\":\"Too many photo uploads from this network. Wait a minute, then try again.\"}"
+        }
+      }
+    }
+  ]
+}

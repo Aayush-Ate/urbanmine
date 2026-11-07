@@ -28,7 +28,7 @@ independent audit before real users put real money through it.
 | 7 | Low | `bbox` could be inverted or outside the frame; the browser crops listing photos with those numbers, so the wrong object was shown. | **Fixed** |
 | 8 | Low | An oversized/invalid upload returned 200 with an `error` field rather than 4xx. | **Kept** — the UI reads the field, and the test suite pins the shape; changing it would break the client contract for no security gain. |
 | 9 | High | `DELETE /api/listings/{id}` and `PATCH` on listings and requests have **no authentication**. Anyone who can reach the URL can delete inventory. | **Open, accepted for the demo** |
-| 10 | Medium | Third-party scripts load without integrity hashes: Cesium from jsDelivr, fonts from Google Fonts. A compromised CDN could run code in the page. | **Open** |
+| 10 | Medium | Third-party scripts load without integrity hashes: Cesium from jsDelivr, fonts from Google Fonts. A compromised CDN could run code in the page. | **Open — CSP written report-only, not yet deployed; SRI still missing** |
 | 11 | Low | `?debug=1` on analyze returns internal detection state. No secrets, but it is an unbounded surface. | **Open** |
 | 12 | Info | Dependency ranges are `>=`, not pinned, so builds pick up new releases unreviewed. | **Open** |
 
@@ -62,6 +62,35 @@ Two locks, because one of them is the one that runs.
 `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, a narrow
 `Permissions-Policy`, and HSTS only when the request actually arrived over TLS.
 
+## Edge protection (2026-11-07)
+
+Cloudflare is configured for the app but **not yet in front of it**: a
+`*.vercel.app` hostname cannot be proxied, so none of the edge rules are live
+until a domain is added (`CLOUDFLARE.md` §0). The runbook, the exact rules and
+the apply script are in [`CLOUDFLARE.md`](CLOUDFLARE.md). What changes here:
+
+- The frontend config sends `Content-Security-Policy-Report-Only` on the next
+deploy (see `frontend/vercel.json`) — it is not live until that deploy ships.
+  Report-only on purpose: Cesium loads from jsDelivr and
+  spawns `blob:` workers, and a wrong `script-src` white-screens the globe. Watch
+  the console for violations, then rename the header to
+  `Content-Security-Policy`.
+- Once the domain is proxied, one edge rule caps `/api/analyze` at 30/minute per
+  IP. That is the shared ceiling the in-memory window cannot give: it survives a
+  Vercel restart and covers every instance, cold containers included.
+- The limiter now keys on the caller, not the proxy. `client_ip()` in
+  `app/core/ratelimit.py` reads `CF-Connecting-IP`, then `X-Forwarded-For`, then
+  the socket peer. Before this, `request.client.host` was the Vercel edge, so the
+  documented "20 analyses a minute per client" was really 20 for the whole site —
+  every user sharing one bucket. Pinned by `tests/test_proxy_ip.py`.
+- `PATCH`/`DELETE` are challenged for non-browser clients at the edge. That is a
+  speed bump, not authentication — finding 9 still stands unchanged.
+- `?debug=1` (finding 11) and `/docs` (unlisted) are blocked at the edge, so
+  neither is reachable in production without a code change or a rule change.
+
+None of this replaces the app-level limits, and none of it works until the domain
+is proxied by Cloudflare — a `*.vercel.app` hostname cannot be.
+
 ## Verified in this review
 
 - Only `backend/.env.example` and `frontend/.env.example` are tracked; the real
@@ -70,7 +99,7 @@ Two locks, because one of them is the one that runs.
   in `localStorage`. User text is rendered through React, which escapes it.
 - Photos are generated names only (`uuid4().hex[:10] + ".jpg"`); a request can
   never choose one.
-- Every fix above has a test; the suite is 76 tests and runs without network or
+- Every fix above has a test; the suite is 82 tests and runs without network or
   model downloads.
 
 ## Not verified here
@@ -87,8 +116,8 @@ Two locks, because one of them is the one that runs.
    owned by the contractor who created them. This is the blocker.
 2. **Shared rate limiting.** Redis (or the host's gateway) so the limit survives
    a restart and covers every instance.
-3. **SRI or self-hosting** for Cesium and the fonts; a Content-Security-Policy on
-   the frontend.
+3. **SRI or self-hosting** for Cesium and the fonts; promote the report-only CSP
+   (see [`CLOUDFLARE.md`](CLOUDFLARE.md)) to enforcing.
 4. **Pinned dependencies** and an audit in CI.
 5. **Object storage** for photos with signed URLs once volume grows, so the API
    is not the image server.
