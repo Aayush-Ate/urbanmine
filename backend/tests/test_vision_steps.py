@@ -1,10 +1,78 @@
 """Tests for the small vision steps. No model weights are loaded here."""
+import os
+import types
 import unittest
 from unittest import mock
 
+import numpy as np
 from PIL import Image
 
 from app.ai import vision
+
+
+class TestMaskCoverage(unittest.TestCase):
+    def test_mask_fraction_beats_the_bounding_box(self):
+        # a ragged pile fills half its box; the mask says so
+        res = types.SimpleNamespace(
+            masks=types.SimpleNamespace(data=[np.array([[1.0, 1.0], [0.0, 0.0]])]))
+        self.assertAlmostEqual(vision._mask_area(res, 0), 0.5)
+
+    def test_detector_only_results_report_no_mask(self):
+        self.assertEqual(vision._mask_area(types.SimpleNamespace(masks=None), 0), 0.0)
+        self.assertEqual(vision._mask_area(types.SimpleNamespace(), 0), 0.0)
+
+    def test_a_bad_index_is_not_fatal(self):
+        res = types.SimpleNamespace(masks=types.SimpleNamespace(data=[]))
+        self.assertEqual(vision._mask_area(res, 3), 0.0)
+
+
+class TestWorldLoader(unittest.TestCase):
+    """The default open-vocab model is YOLOE; a *world* path still loads."""
+
+    def setUp(self):
+        self._saved = vision.world_model
+        vision.world_model = None
+
+    def tearDown(self):
+        vision.world_model = self._saved
+
+    def _fake_ultralytics(self):
+        calls = {}
+
+        class Stub:
+            def __init__(self, path):
+                self.path = path
+                calls["path"] = path
+
+            def set_classes(self, names):
+                calls["classes"] = list(names)
+                return dict(enumerate(names))
+
+        return types.SimpleNamespace(YOLO=Stub, YOLOE=Stub), calls
+
+    def test_default_weights_load_through_yoloe(self):
+        fake, calls = self._fake_ultralytics()
+        with mock.patch.dict("sys.modules", {"ultralytics": fake}), \
+                mock.patch.dict(os.environ, {"WORLD_MODEL_PATH": ""}):
+            vision._load_world()
+        self.assertEqual(calls["path"], "yoloe-11s-seg.pt")
+        self.assertEqual(calls["classes"], vision.WORLD_CLASSES)
+        self.assertTrue(vision.world_model)
+
+    def test_world_checkpoint_still_uses_plain_yolo(self):
+        # the revert path has to keep working
+        fake, calls = self._fake_ultralytics()
+        with mock.patch.dict("sys.modules", {"ultralytics": fake}), \
+                mock.patch.dict(os.environ, {"WORLD_MODEL_PATH": "yolov8m-worldv2.pt"}):
+            vision._load_world()
+        self.assertEqual(calls["path"], "yolov8m-worldv2.pt")
+        self.assertTrue(vision.world_model)
+
+    def test_a_broken_import_leaves_world_model_false(self):
+        with mock.patch.dict("sys.modules", {"ultralytics": None}), \
+                mock.patch.dict(os.environ, {"WORLD_MODEL_PATH": ""}):
+            vision._load_world()
+        self.assertIs(vision.world_model, False)
 
 
 def red_image():

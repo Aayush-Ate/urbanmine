@@ -52,6 +52,8 @@ CONDITION_PRICE = {"Excellent": 1.0, "Good": 0.85, "Fair": 0.65, "Poor": 0.4}
 WORLD_PROMPTS = {
     "a stack of red clay bricks": "Bricks", "red brick wall": "Bricks",
     "pile of clay bricks": "Bricks", "brick pile": "Bricks",
+    "hollow clay bricks": "Bricks", "stack of hollow bricks": "Bricks",
+    "perforated clay bricks": "Bricks",
     "stack of wooden planks": "Wood", "pile of timber beams": "Wood",
     "wooden planks": "Wood", "wooden beams": "Wood",
     "pile of concrete rubble": "Concrete", "broken concrete debris": "Concrete",
@@ -105,7 +107,36 @@ WORLD_NONCON = {"person", "man", "woman", "child", "clothes", "bedsheet",
 WORLD_CLASSES = list(WORLD_PROMPTS) + sorted(WORLD_NONCON) + sorted(WORLD_IGNORE)
 
 # Below this World confidence, boxes are junk. CLIP gate disposes the rest.
-WORLD_CONF = 0.12
+# 0.12 was too permissive: a 13% box on one brick was kept as "Bricks".
+# This stays as the floor for anything not named below.
+WORLD_CONF = 0.20
+
+# One global cut cannot fit all sixteen materials. "stack of red clay bricks"
+# is a frequent, distinctive phrase, so a weak match is usually a wall or a
+# flowerpot. "window frame" is rare in pre-training, so a weak match is often
+# the real thing. Strict where the model is over-eager, loose where it is shy.
+#
+# These are reasoned starting points, not measured ones. The only honest way to
+# set them is labelled site photos: raise a material if its listings are junk,
+# lower it if real ones are missing. `?debug=1` shows the raw conf per prompt.
+WORLD_CONF_BY_MATERIAL = {
+    "Bricks": 0.30,
+    "Wood": 0.22,
+    "Metal": 0.22,
+    "Doors": 0.18,
+    "Windows": 0.18,
+    "Concrete": 0.25,
+    "Plywood": 0.22,
+    "Rebar": 0.28,
+    "Copper": 0.32,
+    "Aluminium": 0.25,
+    "PVC Pipes": 0.28,
+    "Tiles": 0.25,
+    "Marble": 0.30,
+    "Glass": 0.32,
+    "Gypsum": 0.22,
+    "Sand": 0.30,
+}
 
 # yolov8n only knows everyday objects. It has no brick or concrete class,
 # so furniture counts as Wood and vehicles/appliances as Metal scrap.

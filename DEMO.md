@@ -38,7 +38,7 @@ npm run dev
 
 The frontend proxies `/api` and `/uploads` to port 8000, so no CORS and no cross-origin calls.
 
-**First photo is slow** (~60 s) because torch, ultralytics, and transformers download the YOLO and CLIP weights. Every photo after that is seconds.
+**First photo is slow** (~60 s) because torch, ultralytics, and transformers download the YOLOE, YOLO and CLIP weights. Every photo after that is seconds.
 
 Phone on same Wi-Fi: `HTTPS=1 npm run dev -- --host`, then open `https://<mac-lan-ip>:5173` and accept the self-signed cert. HTTPS unlocks camera + geolocation on mobile.
 

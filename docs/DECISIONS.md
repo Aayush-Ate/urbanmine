@@ -20,7 +20,8 @@ the reason and the cost, so the next person does not re-argue it from zero.
 What we ship is `backend/Dockerfile` on `python:3.11-slim`.
 
 The backend imports torch, ultralytics, transformers and PIL, and the image
-carries roughly 150MB of YOLO and CLIP weights. That lands near 2GB. A normal
+carries roughly 150MB of YOLO and CLIP weights plus YOLOE's 572MB text encoder.
+That lands a little over 2GB. A normal
 serverless function — a JS lambda, a Vercel edge function — has a bundle limit
 far below that and a short request budget. There is no version of "just deploy
 the Python file somewhere" that runs this. The container is not decoration, it is
@@ -33,10 +34,10 @@ Three lines in the Dockerfile do real work:
 2. `libgl1` and `libglib2.0-0` are installed, because ultralytics pulls OpenCV and
    OpenCV will not import without them.
 3. The weights are downloaded, and one `set_classes()` call is exercised, at build
-   time. That call imports the OpenAI `clip` package, which ultralytics does not
-   install for you. Baking it means a broken YOLO-World fails the build instead
-   of quietly serving without it — and cold starts do not spend 30-60s
-   downloading.
+   time. For YOLOE that call is also what fetches the 572MB `mobileclip_blt.ts`
+   prompt encoder, so it must run from `/app`. Baking it means a broken weight
+   fails the build instead of quietly serving without an open-vocab model — and
+   cold starts do not spend 30-60s downloading.
 
 What it costs: builds around four minutes, a ~2GB image, a 30-60s cold start when
 the host scales to zero, and a host that must give the container 2GB of RAM.

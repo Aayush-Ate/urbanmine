@@ -14,12 +14,15 @@ RUN pip install --no-cache-dir torch torchvision \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Bake the YOLO weights into the image so cold starts do not download them.
-# The world model also needs a set_classes() call here: it imports clip, and
-# failing at build time is better than silently serving without YOLO-World.
+# Bake the detection weights into the image so cold starts do not download them.
+# Two models: yolov8n for everyday objects, YOLOE for the material prompts.
+# YOLOE's set_classes() pulls its text encoder (mobileclip_blt.ts, 572MB) into
+# the working dir, which is why this runs from /app and why the image grows.
+# Failing here is better than silently serving without an open-vocab model.
 RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt'); \
-    world = YOLO('yolov8m-worldv2.pt'); world.set_classes(['brick']); \
-    print('yolo weights ok')"
+    from ultralytics import YOLOE; \
+    world = YOLOE('yoloe-11s-seg.pt'); world.set_classes(['brick']); \
+    print('detection weights ok')"
 
 # Bake CLIP into the image too. The cache path is fixed so runtime can find it.
 ENV HF_HOME=/app/.cache/huggingface

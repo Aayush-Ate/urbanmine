@@ -78,12 +78,13 @@ cd backend
 vercel deploy --prod --yes
 ```
 
-The first build takes about four minutes. The Dockerfile downloads the YOLO and
-CLIP weights at build time, so cold starts do not fetch them. It also runs
-`set_classes()` once as a build check. YOLO-World imports the OpenAI `clip`
-package for that call, `ultralytics` does not install it, so `clip-anytorch` is in
-`requirements.txt`. If that import breaks, the image build fails instead of
-quietly serving without YOLO-World.
+The first build takes longer than four minutes now. The Dockerfile downloads the
+`yolov8n`, YOLOE and CLIP weights at build time, so cold starts do not fetch them.
+YOLOE also drags in `mobileclip_blt.ts`, its 572MB prompt encoder — that is the
+bulk of the added size and the bulk of the added build time. The build runs
+`set_classes()` once as a check, so a broken weight fails the build instead of
+quietly serving without an open-vocab model. `clip-anytorch` stays in
+`requirements.txt` only for the YOLO-World revert path (`WORLD_MODEL_PATH`).
 
 The app module inside the image is `app.main:app`, because `backend/` is copied to
 `/app` and the package sits at `/app/app/`. The local command and the container

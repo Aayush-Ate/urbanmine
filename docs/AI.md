@@ -58,6 +58,34 @@ What the hosted call is asked for, and what is enforced on the reply:
 A timeout, a 500, or prose instead of JSON returns `None`, and the local passes
 run. A network blip costs seconds; it never becomes "no materials found".
 
+## Local fallback: one floor per material (2026-11-07)
+
+A single `WORLD_CONF` was the wrong shape for sixteen materials. `0.20` let a
+13%-confidence box on one brick become a Bricks listing, while a real window
+frame at 19% was thrown away. `WORLD_CONF_BY_MATERIAL` in `catalog.py` now sets
+a floor per material — strict where the model is over-eager (Bricks 0.30, Glass
+0.32, Copper 0.32), loose where it is shy (Doors 0.18, Windows 0.18).
+`world_infer` runs the net at the lowest floor and cuts each material at its own,
+which is why the numbers may sit below the global default.
+
+These are reasoned starting points, not measurements. `?debug=1` returns the raw
+confidence per prompt; raise a material when its listings are junk, lower it when
+real ones go missing. The test suite pins the table's shape
+(`tests/test_thresholds.py`), not the individual numbers.
+
+**The model is swapped (2026-11-07).** `world_infer` now loads YOLOE
+(`yoloe-11s-seg.pt`) instead of YOLO-World v2-M: same runtime, same size class,
+and on LVIS YOLOE-v8-S beats YOLO-World v2-S by 3.5 AP at ~1.4× the speed. The
+cost is the text encoder — YOLOE reads prompts from `mobileclip_blt.ts`, a 572MB
+file that must sit next to the weights, so the image grows by roughly 0.6GB and
+the Docker bake step now fetches it. `_load_world` picks the class from the path,
+so `WORLD_MODEL_PATH=yolov8m-worldv2.pt` still loads the old checkpoint through
+plain `YOLO`. That is the revert path.
+
+None of this is measured on our own catalogue. The thresholds and the swap are
+both reasoned from published numbers; the labelled photos below are what turn
+them into measurement.
+
 ## Why this is the better answer for *this* product
 
 1. **It answers the question being asked.** The UI needs a material, a quantity,

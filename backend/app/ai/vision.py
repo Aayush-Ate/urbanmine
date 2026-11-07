@@ -14,7 +14,8 @@ from PIL import Image
 
 from app.core.catalog import (
     CLIP_GATE, CLIP_LABELS, COCO_TO_MATERIAL, CONDITION_PRICE, MATERIAL_META,
-    WORLD_CLASSES, WORLD_CONF, WORLD_IGNORE, WORLD_NONCON, WORLD_PROMPTS,
+    WORLD_CLASSES, WORLD_CONF, WORLD_CONF_BY_MATERIAL, WORLD_IGNORE, WORLD_NONCON,
+    WORLD_PROMPTS,
 )
 from app.ai import vlm
 from app.core.scoring import qty_for
@@ -45,16 +46,32 @@ def _load_yolo():
 
 
 def _load_world():
-    # bigger model. we give it material prompts and it draws boxes.
+    # open-vocab detector. we give it material prompts and it draws boxes.
+    #
+    # YOLOE is the default now: same size class and same Ultralytics runtime as
+    # YOLO-World v2-M, and on LVIS YOLOE-v8-S beats YOLO-World v2-S by 3.5 AP
+    # at ~1.4x the speed. It is not free: the prompts come from a separate
+    # 572MB `mobileclip_blt.ts` that must sit beside the weights, which the
+    # Dockerfile bakes and .gitignore keeps out of the repo.
+    #
+    # The class differs between the two, so the path decides: a *world*
+    # checkpoint (e.g. WORLD_MODEL_PATH=yolov8m-worldv2.pt) still loads through
+    # plain YOLO. That is the revert path, not dead code.
     global world_model
+    path = os.getenv("WORLD_MODEL_PATH") or "yoloe-11s-seg.pt"
     try:
-        from ultralytics import YOLO
-        path = os.getenv("WORLD_MODEL_PATH") or "yolov8m-worldv2.pt"
-        world_model = YOLO(path)
-        world_model.set_classes(WORLD_CLASSES)
+        if "world" in os.path.basename(path).lower():
+            from ultralytics import YOLO
+            model = YOLO(path)
+        else:
+            from ultralytics import YOLOE
+            model = YOLOE(path)
+        model.set_classes(WORLD_CLASSES)
     except Exception as e:
-        print("YOLO-World not loaded:", e)
+        print("open-vocab model not loaded:", e)
         world_model = False
+    else:
+        world_model = model
 
 
 def _load_clip():
@@ -71,10 +88,33 @@ def _load_clip():
         clip_model = False
 
 
-def _run_infer(model, image, conf, label_to_mat, ignore_set, noncon_set):
+def _mask_area(res, idx):
+    # fraction of the frame covered by a segmentation mask. YOLOE returns
+    # these; a plain detector does not, and then this is 0.
+    masks = getattr(res, "masks", None)
+    data = getattr(masks, "data", None)
+    if data is None:
+        return 0.0
+    try:
+        m = data[idx]
+        if hasattr(m, "detach"):
+            m = m.detach().cpu().numpy()
+        return float((m > 0.5).mean())
+    except Exception:
+        return 0.0
+
+
+def _run_infer(model, image, conf, label_to_mat, ignore_set, noncon_set,
+               threshold_for=None):
     # shared box loop for yolov8n and yolo-world.
     # map label -> material. household labels go to others so the ui can
     # show what got thrown out. tiny boxes are junk, skip them.
+    #
+    # conf is the floor handed to the model. threshold_for, when given, is the
+    # per-material cut applied after the label is known — the model has to run
+    # at the lowest floor or the stricter materials never get a box at all.
+    # If a threshold_for returns a value below the model floor, that material
+    # is effectively disabled.
     if model is None or model is False:
         return [], []
     try:
@@ -87,7 +127,7 @@ def _run_infer(model, image, conf, label_to_mat, ignore_set, noncon_set):
     others = {}
     names = res.names
 
-    for b in res.boxes:
+    for i, b in enumerate(res.boxes):
         label = str(names[int(b.cls[0])]).lower()
         c = float(b.conf[0])
 
@@ -100,9 +140,16 @@ def _run_infer(model, image, conf, label_to_mat, ignore_set, noncon_set):
                 others[label] = max(others.get(label, 0), c)
             continue
 
+        need = threshold_for(mat) if threshold_for else conf
+        if c < need:
+            continue
+
         x1, y1, x2, y2 = (float(v) for v in b.xyxy[0])
         _, _, w, h = (float(v) for v in b.xywhn[0])
-        area = max(0.0, min(w * h, 1.0))
+        # a pile is not a rectangle. the mask tracks its ragged edge, and the
+        # footprint is what the quantity estimate is built on, so prefer it.
+        # detector-only checkpoints have no masks and fall back to the box.
+        area = _mask_area(res, i) or max(0.0, min(w * h, 1.0))
         # a pen on a desk is a tiny box, not a salvage pile
         if area < 0.005:
             continue
@@ -123,9 +170,16 @@ def yolo_infer(image):
 def world_infer(image):
     # pass 2. prompts like "stack of red clay bricks" -> bricks.
     # this is the one that actually knows materials.
+    #
+    # Run the net at the lowest per-material floor, then cut each material at
+    # its own threshold. Running at WORLD_CONF would hide the loose materials,
+    # whose threshold is below it.
     if world_model is None:
         _load_world()
-    return _run_infer(world_model, image, WORLD_CONF, WORLD_PROMPTS.get, WORLD_IGNORE, WORLD_NONCON)
+    floor = min([WORLD_CONF, *WORLD_CONF_BY_MATERIAL.values()])
+    return _run_infer(world_model, image, floor, WORLD_PROMPTS.get, WORLD_IGNORE,
+                      WORLD_NONCON,
+                      threshold_for=lambda mat: WORLD_CONF_BY_MATERIAL.get(mat, WORLD_CONF))
 
 
 def visual_estimate(image):
@@ -264,18 +318,29 @@ def clip_filter_hits(image, hits):
 def merge_hits(world_hits, yolo_hits):
     # merge the two model passes. same material from both? keep the higher
     # conf and the box that won, so the ui crops the right thing.
+    # within one pass there can be two boxes for the same material too:
+    # a tiny box on one brick vs a big box on the whole pile. the big box is
+    # the one the quantity comes from, so keep it unless the small one is
+    # a lot more confident.
     merged = {}
+
+    def _keep(mat, conf, area, box, source):
+        if mat not in merged:
+            merged[mat] = {"conf": conf, "cov": area, "source": source, "box": box}
+            return
+        cur = merged[mat]
+        newer = (conf, area) > (cur["conf"] + 0.12, cur["cov"]) or area > cur["cov"] and conf > cur["conf"] - 0.12
+        if newer:
+            cur["conf"] = max(cur["conf"], conf)
+            cur["box"] = box
+        cur["cov"] = max(cur["cov"], area)
+        if source not in cur["source"]:
+            cur["source"] += f" + {source}"
+
     for mat, conf, area, box in world_hits:
-        merged[mat] = {"conf": conf, "cov": area, "source": "yolo-world", "box": box}
+        _keep(mat, conf, area, box, "yolo-world")
     for mat, conf, area, box in yolo_hits:
-        if mat in merged:
-            if conf > merged[mat]["conf"]:
-                merged[mat]["conf"] = conf
-                merged[mat]["box"] = box
-            merged[mat]["cov"] = max(merged[mat]["cov"], area)
-            merged[mat]["source"] += " + yolov8n"
-        else:
-            merged[mat] = {"conf": conf, "cov": area, "source": "yolov8n", "box": box}
+        _keep(mat, conf, area, box, "yolov8n")
     return merged
 
 

@@ -2,14 +2,16 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 python-multipart>=0.0.9
 pydantic>=2.0
-# Real YOLOv8 detection + visual material estimates (torch CPU comes with ultralytics)
-ultralytics>=8.2
+# Real YOLOv8n + YOLOE detection and visual material estimates (torch CPU
+# comes with ultralytics). >=8.3 is required: that is where YOLOE landed.
+ultralytics>=8.3
 pillow>=10.0
 numpy>=1.24
 # CLIP zero-shot domain gate (bedsheet/fabric filter)
 transformers>=4.40
-# YOLO-World calls set_classes(), which imports OpenAI CLIP.
-# ultralytics does not pull this in, so without it world_model stays False.
+# Revert path only. A *world* checkpoint still loads through plain YOLO, and
+# set_classes() on it imports OpenAI CLIP, which ultralytics does not ship.
+# The default YOLOE path uses ultralytics' own CLIP instead.
 clip-anytorch>=2.6
 # Postgres store. Only used when DATABASE_URL is set; JSON works without it.
 psycopg[binary]>=3.2
