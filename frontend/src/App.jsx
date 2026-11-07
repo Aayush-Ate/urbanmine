@@ -57,6 +57,17 @@ const MATERIAL_PAINT = {
   Glass: '#7dd3e0', Gypsum: '#e8e2d0', Sand: '#d4a017',
 }
 
+// boxColor maps a 0..1 confidence to a box colour, like Arduino / Edge Impulse
+// live classification: green = sure, pink = guessing.
+function boxColor(confidence) {
+  const c = Number(confidence) || 0
+  if (c >= 0.8) return '#00c853'
+  if (c >= 0.6) return '#00b8d4'
+  if (c >= 0.4) return '#ffb300'
+  if (c >= 0.2) return '#ff6d00'
+  return '#ff0976'
+}
+
 // TABS defines the 4 tabs: Upload, Marketplace, Smart Match, Requests
 const TABS = [
   { id: 'upload', label: 'Upload + AI', short: 'Upload', title: 'Upload + AI', sub: 'Drop demolition photos. AI reads location and materials.' },
@@ -127,6 +138,46 @@ function cropCanvas(img, bbox, maxSize, allowUpscale) {
   return c
 }
 
+// HighlightedPhoto draws a confidence-coloured box for every detection
+// directly on the photo, like Arduino Vision / Edge Impulse overlay.
+// bbox is 0..1. Clicking or hovering a box selects that detection.
+function HighlightedPhoto({ src, detections, activeIndex, onSelect, alt }) {
+  return (
+    <div className="photo-highlight-wrap">
+      <img className="photo-highlight-img" src={src} alt={alt || 'Site photo with detections highlighted'} />
+      {(detections || []).map((d, i) => {
+        if (!d.bbox) return null
+        const [x1, y1, x2, y2] = d.bbox
+        const color = boxColor(d.confidence)
+        const isActive = activeIndex === i
+        const dimmed = activeIndex != null && !isActive
+        return (
+          <button
+            key={i}
+            type="button"
+            className={isActive ? 'box-highlight active' : 'box-highlight'}
+            style={{
+              left: `${x1 * 100}%`, top: `${y1 * 100}%`,
+              width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
+              borderColor: color,
+              opacity: dimmed ? 0.45 : 1,
+              zIndex: isActive ? 4 : 2,
+            }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect && onSelect(isActive ? null : i) }}
+            onMouseEnter={() => onSelect && onSelect(i)}
+            onMouseLeave={() => onSelect && onSelect(null)}
+            aria-label={`${d.material} detected, ${d.confidence != null ? Math.round(d.confidence * 100) : ''} percent`}
+          >
+            <span className="box-label" style={{ background: color }}>
+              {d.material}{d.confidence != null ? ` ${Math.round(d.confidence * 100)}%` : ''}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // CropThumb shows only the detected object, cut from the uploaded photo.
 // No bbox means a color-only hit, so the whole frame is the only evidence.
 function CropThumb({ src, bbox, alt, onOpen }) {
@@ -164,11 +215,14 @@ function CropThumb({ src, bbox, alt, onOpen }) {
 
 // CropViewer opens on the object itself, cut from the photo.
 // "Show in photo" switches to the whole frame with the box drawn, for context.
-function CropViewer({ src, bbox, material, pct, onClose }) {
+function CropViewer({ src, bbox, material, pct, confidence, onClose }) {
   // view is 'object' (tight crop) or 'photo' (full frame + box)
   const [view, setView] = useState('object')
   // objectUrl is the enlarged cutout of the detected box
   const [objectUrl, setObjectUrl] = useState('')
+  // confidence is 0..1; pct is 0..100 (share shown in list). Either may be absent.
+  const conf = confidence != null ? Number(confidence) : pct != null ? Number(pct) / 100 : 0
+  const boxCol = boxColor(conf)
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -207,10 +261,17 @@ function CropViewer({ src, bbox, material, pct, onClose }) {
         ) : (
           <div className="crop-frame">
             <img src={src} alt={`Full photo with the ${material} detection highlighted`} />
-            {bbox && <span className="crop-box" style={{
-              left: `${x1 * 100}%`, top: `${y1 * 100}%`,
-              width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
-            }} />}
+            {bbox && (
+              <span className="crop-box" style={{
+                left: `${x1 * 100}%`, top: `${y1 * 100}%`,
+                width: `${(x2 - x1) * 100}%`, height: `${(y2 - y1) * 100}%`,
+                borderColor: boxCol,
+              }}>
+                <span className="box-label" style={{ background: boxCol }}>
+                  {material}{conf ? ` ${Math.round(conf * 100)}%` : ''}
+                </span>
+              </span>
+            )}
           </div>
         )}
         <div className="crop-view-bar">
@@ -487,6 +548,10 @@ function UploadPanel({ onGoMarket }) {
   const [dimUnit, setDimUnit] = useState('ft')
   // dets is the list of materials AI found
   const [dets, setDets] = useState([])
+  // showBoxes toggles the Arduino-style highlights on the photo
+  const [showBoxes, setShowBoxes] = useState(true)
+  // activeDet is the detection currently highlighted (hover in list or on photo)
+  const [activeDet, setActiveDet] = useState(null)
   // others is things that are NOT construction (bedsheet, person, clothes)
   const [others, setOthers] = useState([])
   // isSite tells if photo looks like construction site
@@ -618,7 +683,7 @@ function UploadPanel({ onGoMarket }) {
   const onFile = async (f) => {
     if (!f) return
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(f) })
-    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl(''); setThumbUrl(''); setCalib(null)
+    setFile(f); setDets([]); setOthers([]); setIsSite(true); setSaved([]); setError(''); setModel(''); setVerification(null); setImageUrl(''); setThumbUrl(''); setCalib(null); setActiveDet(null); setShowBoxes(true)
     setLoading(true); setPhase('exif'); setExifNote('')
     let plat = form.lat, plng = form.lng
     let hasGps = false
@@ -749,10 +814,50 @@ function UploadPanel({ onGoMarket }) {
               <div key={s} className={i < step ? 'step done' : i === step ? 'step on' : 'step'}>{i < step ? '✓ ' : ''}{s}</div>
             ))}
           </div>
-          <label className="drop" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); onFile(e.dataTransfer.files[0]) }}>
-            <input type="file" accept="image/*" className="visually-hidden" onChange={e => onFile(e.target.files[0])} aria-label="Upload demolition site photo" />
-            {preview ? <img src={preview} alt="Demolition site preview" /> : <div className="drop-empty"><b>Drop photo / click to browse</b><span>JPG, PNG — site, pile, interior</span></div>}
-          </label>
+          {preview ? (
+            <div className="photo-area" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); onFile(e.dataTransfer.files[0]) }}>
+              {showBoxes && dets.length > 0 ? (
+                <HighlightedPhoto
+                  src={preview}
+                  detections={dets}
+                  activeIndex={activeDet}
+                  onSelect={setActiveDet}
+                  alt="Demolition site preview with detected materials highlighted"
+                />
+              ) : (
+                <div className="photo-highlight-wrap">
+                  <img className="photo-highlight-img" src={preview} alt="Demolition site preview" />
+                </div>
+              )}
+              <div className="photo-toolbar">
+                {dets.length > 0 ? (
+                  <>
+                    <button type="button" className="box-toggle" aria-pressed={showBoxes} onClick={() => setShowBoxes(v => !v)}>
+                      {showBoxes ? '■ Boxes on' : '□ Boxes off'}
+                    </button>
+                    <div className="box-legend" aria-label="Confidence colours">
+                      <span><i style={{ background: '#00c853' }} /> ≥80%</span>
+                      <span><i style={{ background: '#00b8d4' }} /> 60–80</span>
+                      <span><i style={{ background: '#ffb300' }} /> 40–60</span>
+                      <span><i style={{ background: '#ff6d00' }} /> 20–40</span>
+                      <span><i style={{ background: '#ff0976' }} /> &lt;20</span>
+                    </div>
+                  </>
+                ) : (
+                  <span className="mono small muted">Boxes appear here when AI finds something.</span>
+                )}
+                <label className="box-change">
+                  Change photo
+                  <input type="file" accept="image/*" className="visually-hidden" onChange={e => onFile(e.target.files[0])} aria-label="Change demolition site photo" />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <label className="drop" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); onFile(e.dataTransfer.files[0]) }}>
+              <input type="file" accept="image/*" className="visually-hidden" onChange={e => onFile(e.target.files[0])} aria-label="Upload demolition site photo" />
+              <div className="drop-empty"><b>Drop photo / click to browse</b><span>JPG, PNG — site, pile, interior</span></div>
+            </label>
+          )}
           <div className="snap-row">
             <label className="cta sm">📷 Snap with camera<input type="file" accept="image/*" capture="environment" className="visually-hidden" onChange={e => e.target.files[0] && onFile(e.target.files[0])} aria-label="Take a site photo" /></label>
             <span className="mono small muted">mobile: rear camera · GPS tag auto-read</span>
@@ -814,8 +919,13 @@ function UploadPanel({ onGoMarket }) {
             </div>
           )}
           {dets.map((d, i) => (
-            <div key={i} className="det">
-              <div className="det-top"><CropThumb src={preview} bbox={d.bbox} alt={`Detected ${d.material} crop`} onOpen={() => setZoom({ src: preview, bbox: d.bbox, material: d.material, pct: d.share != null ? d.share : Math.round(d.confidence * 100) })} /><span className="mdot" style={{ background: MATERIAL_PAINT[d.material] || '#1f1f1f' }} /><b>{d.material}</b>
+            <div
+              key={i}
+              className={activeDet === i ? 'det active' : 'det'}
+              onMouseEnter={() => { setShowBoxes(true); setActiveDet(i) }}
+              onMouseLeave={() => setActiveDet(null)}
+            >
+              <div className="det-top"><CropThumb src={preview} bbox={d.bbox} alt={`Detected ${d.material} crop`} onOpen={() => setZoom({ src: preview, bbox: d.bbox, material: d.material, confidence: d.confidence, pct: d.share != null ? d.share : Math.round(d.confidence * 100) })} /><span className="mdot" style={{ background: MATERIAL_PAINT[d.material] || '#1f1f1f' }} /><span className="box-swatch" style={{ borderColor: boxColor(d.confidence) }} aria-hidden="true" /><b>{d.material}</b>
                 <span className="conf" title={d.source || ''}>{d.share != null ? d.share : Math.round(d.confidence * 100)}%</span></div>
               <div className="frow">
                 <label>Qty<input type="number" value={d.quantity} onChange={e => updateDet(i, 'quantity', e.target.value)} /></label>
@@ -1067,7 +1177,7 @@ function MarketPanel({ onGoUpload }) {
                     alt={`${l.material} listing photo`}
                     onOpen={() => setZoom({
                       src: `${API}${l.image_url || l.thumb_url}`, bbox: l.bbox, material: l.material,
-                      pct: l.confidence != null ? Math.round(l.confidence * 100) : null,
+                      confidence: l.confidence, pct: l.confidence != null ? Math.round(l.confidence * 100) : null,
                     })}
                   />
                 </div>

@@ -66,6 +66,29 @@ input, select, button { font: inherit; }
 }
 .drop { display: block; border: 1.5px dashed #1f1f1f; border-radius: 14px; overflow: hidden; cursor: pointer; background: #e0e0e0; min-height: 200px; transition: border-color .25s var(--ease), background .25s var(--ease); }
 .drop:hover { border-color: var(--amber); background: #e6e6e6; }
+/* Arduino-style box highlights on the uploaded photo */
+/* NO object-fit: cover here. The bbox is 0..1 of the whole photo. If the image
+   is cropped to fill a fixed ratio, every box shifts off the object it saw.
+   The photo is shown uncropped and the boxes sit at the same percentages. */
+.photo-area { display: grid; gap: 8px; }
+.photo-highlight-wrap { position: relative; line-height: 0; border-radius: 14px; border: 1.5px dashed #1f1f1f; background: #e0e0e0; }
+.photo-highlight-img { width: 100%; height: auto; display: block; }
+.box-highlight { position: absolute; background: transparent; border: 3px solid #00c853; border-radius: 2px; padding: 0; cursor: pointer; transition: box-shadow .15s var(--ease), opacity .15s var(--ease); }
+.box-highlight:hover, .box-highlight.active { box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 0 16px rgba(0,0,0,.35); }
+.box-highlight:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+/* label sits inside the top of its own box, so boxes at the photo edge never clip */
+.box-label { position: absolute; top: 0; left: 0; background: #00c853; color: #fff; font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 0 0 6px 0; white-space: nowrap; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.crop-box .box-label { top: 0; left: 0; }
+.photo-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.box-toggle { border: 1px solid var(--line); background: #d9d9d9; color: var(--ink); border-radius: 99px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.box-toggle:hover { background: #c6c6c6; }
+.box-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; font-family: var(--font-mono); color: var(--ink2); }
+.box-legend span { display: inline-flex; gap: 4px; align-items: center; }
+.box-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.box-change { border: 1.5px solid var(--forest); color: var(--forest); border-radius: 99px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; margin-left: auto; }
+.box-change:hover { background: rgba(31,31,31,.06); }
+.det.active { background: rgba(255,255,255,.35); border-radius: 12px; padding-left: 8px; padding-right: 8px; }
+.box-swatch { width: 14px; height: 14px; border: 3px solid #00c853; border-radius: 2px; flex: none; display: inline-block; margin-right: 4px; }
 .snap-row { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .snap-row .cta { margin-top: 0; }
 /* aspect-ratio instead of a fixed height: the preview keeps the photo's shape
