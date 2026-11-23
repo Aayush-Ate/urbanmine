@@ -1,0 +1,9 @@
+# copy to manifest.jsonl and replace with real labels.
+# one photo per line. materials = what a human sees in the frame.
+# an empty list means "no salvage material" (bedroom, desk, empty yard),
+# so any prediction on that photo is a false positive.
+# coverage is optional: your own estimate of the frame fraction, 0..1.
+{"image": "uploads/0b3bbb7267.jpg", "materials": ["Bricks"], "coverage": {"Bricks": 0.35}}
+{"image": "uploads/141de50d55.jpg", "materials": ["Wood"]}
+{"image": "uploads/18ff2f3756.jpg", "materials": []}
+{"image": "uploads/21050440c2.jpg", "materials": ["Metal", "Concrete"], "coverage": {"Metal": 0.2, "Concrete": 0.15}}

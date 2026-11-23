@@ -17,7 +17,7 @@ from app.core.catalog import (
     WORLD_CLASSES, WORLD_CONF, WORLD_CONF_BY_MATERIAL, WORLD_IGNORE, WORLD_NONCON,
     WORLD_PROMPTS,
 )
-from app.ai import vlm
+from app.ai import detect_math, vlm
 from app.core.scoring import qty_for
 
 # models load lazy. first photo is slow (download + load), after that its fast.
@@ -316,32 +316,17 @@ def clip_filter_hits(image, hits):
 
 
 def merge_hits(world_hits, yolo_hits):
-    # merge the two model passes. same material from both? keep the higher
-    # conf and the box that won, so the ui crops the right thing.
-    # within one pass there can be two boxes for the same material too:
-    # a tiny box on one brick vs a big box on the whole pile. the big box is
-    # the one the quantity comes from, so keep it unless the small one is
-    # a lot more confident.
-    merged = {}
-
-    def _keep(mat, conf, area, box, source):
-        if mat not in merged:
-            merged[mat] = {"conf": conf, "cov": area, "source": source, "box": box}
-            return
-        cur = merged[mat]
-        newer = (conf, area) > (cur["conf"] + 0.12, cur["cov"]) or area > cur["cov"] and conf > cur["conf"] - 0.12
-        if newer:
-            cur["conf"] = max(cur["conf"], conf)
-            cur["box"] = box
-        cur["cov"] = max(cur["cov"], area)
-        if source not in cur["source"]:
-            cur["source"] += f" + {source}"
-
-    for mat, conf, area, box in world_hits:
-        _keep(mat, conf, area, box, "yolo-world")
-    for mat, conf, area, box in yolo_hits:
-        _keep(mat, conf, area, box, "yolov8n")
-    return merged
+    # merge the two model passes into one entry per material.
+    #
+    # boxes are grouped by physical pile before they are summed
+    # (detect_math.merge_by_object): two passes on one stack of bricks are one
+    # pile, but two stacks in the frame are two piles and their coverage adds
+    # up. the old version keyed on the label alone, so the second stack was
+    # dropped and the quantity came out low.
+    return detect_math.merge_by_object([
+        ("yolo-world", world_hits),
+        ("yolov8n", yolo_hits),
+    ])
 
 
 def add_visual_hits(merged, visual_hits, frame_ok, fabric_cov):
@@ -433,6 +418,10 @@ def build_detections(merged, condition, size=None):
         dets.append({
             "material": mat,
             "bbox": bbox,
+            # how much of the frame the material fills, and how many separate
+            # piles that came from. the ui shows piles; quantity is coverage.
+            "coverage": round(float(m["cov"]), 4),
+            "piles": int(m.get("piles", 1)),
             "quantity": qty_for(mat, m["cov"]),
             "unit": meta["unit"],
             "mode": meta["measure"],
